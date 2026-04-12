@@ -555,7 +555,7 @@
   </div>
   <div class="setup-footer">
     <span id="summary-text">Enter a start date and duration or end date</span>
-    <button class="btn btn-primary" id="gen-btn" onclick="generate()">Generate tiles →</button>
+    <button class="btn btn-primary" id="gen-btn" onclick="generate(); if(_loaded) persist()">Generate tiles →</button>
   </div>
 </div>
 
@@ -621,6 +621,7 @@
   let saveTimer = null;
   let hideTimer = null;
   let _notifTimes = ['06:00', '12:00', '18:00'];
+  let _loaded = false; // true only after initial DB fetch completes
 
   // In-memory state
   let SF = { startDate: null, endDate: null, entries: {} };
@@ -718,7 +719,8 @@
 
     SF.startDate = sv;
     SF.endDate   = ev;
-    persist();
+    // persist() is NOT called here — generate() is used both on load (no save)
+    // and when the user clicks Generate (persist called by the button handler)
 
     const grid = document.getElementById('tiles-grid');
     grid.innerHTML = '';
@@ -1095,6 +1097,7 @@
           generate(false);
           updateNotifBtn();
           if (Notification.permission === 'granted') subscribePush();
+          _loaded = true;
           return;
         }
       }
@@ -1103,6 +1106,7 @@
     iStart.value = todayStr();
     updateSummary();
     updateNotifBtn();
+    _loaded = true;
   })();
 
   // ── Service Worker ────────────────────────────────────────────
