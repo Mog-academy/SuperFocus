@@ -46,7 +46,7 @@ select cron.schedule(
   'superfocus-5min',
   '*/5 * * * *',
   $$
-  select extensions.http_post(
+  SELECT net.http_post(
     url     := 'https://ccwydkzvjkbguzvajyyk.supabase.co/functions/v1/push-notify',
     headers := jsonb_build_object(
       'Content-Type',  'application/json',
