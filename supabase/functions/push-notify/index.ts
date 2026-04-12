@@ -77,6 +77,42 @@ Deno.serve(async (req: Request) => {
       return json({ ok: r.ok, status: r.status, body: text });
     }
 
+    // ── Debug: show DB state + time match info ────────────────────
+    if (type === "debug") {
+      const dubaiMs = Date.now() + 4 * 60 * 60 * 1000;
+      const dubaiDate = new Date(dubaiMs);
+      const dubaiMinutes = dubaiDate.getUTCHours() * 60 + dubaiDate.getUTCMinutes();
+      const dubaiHHMM = `${String(dubaiDate.getUTCHours()).padStart(2, '0')}:${String(dubaiDate.getUTCMinutes()).padStart(2, '0')}`;
+
+      const toMinutes = (hhmm: string) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const res = await supabaseFetch("GET", ROW);
+      const rows: any[] = await res.json();
+      const row = rows[0] ?? null;
+
+      const hasSubscription = !!(row?.subscription);
+      const notifyTimes: string[] = Array.isArray(row?.notify_times) ? row.notify_times : [];
+      const timeMatches = notifyTimes.map(t => ({
+        time: t,
+        windowStart: dubaiHHMM,
+        windowEnd: `${String(dubaiDate.getUTCHours()).padStart(2,'0')}:${String(dubaiDate.getUTCMinutes() + 4).padStart(2,'0')}`,
+        wouldFire: (() => { const tm = toMinutes(t); return tm >= dubaiMinutes && tm < dubaiMinutes + 5; })(),
+      }));
+
+      return json({
+        ok: true,
+        dubaiTime: dubaiHHMM,
+        hasSubscription,
+        notifyTimes,
+        timeMatches,
+        userText: row?.user_text ?? null,
+        dbRowFound: !!row,
+      });
+    }
+
     // ── Send a test notification immediately ──────────────────────
     if (type === "test") {
       const res = await supabaseFetch("GET", ROW + "&select=subscription");
