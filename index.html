@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -620,6 +620,7 @@
   const DAYS_PER_MONTH = 30.4375;
   let saveTimer = null;
   let hideTimer = null;
+  let _notifTimes = ['06:00', '12:00', '18:00'];
 
   // In-memory state
   let SF = { startDate: null, endDate: null, entries: {} };
@@ -780,7 +781,7 @@
         tile.classList.toggle('has-content', ta.value.length > 0);
         debouncePersist();
         // Re-schedule notifications when today's tile text changes
-        if (ds === today && localStorage.getItem('sf-notifs') === '1') updatePushText();
+        if (ds === today && Notification.permission === 'granted') updatePushText();
       });
 
       if (animate) {
@@ -838,7 +839,7 @@
 
   // ── Persist ───────────────────────────────────────────────────
   function persist() {
-    try { localStorage.setItem('superfocus', JSON.stringify(SF)); } catch (_) {}
+    callEdge({ type: 'save-data', start_date: SF.startDate, end_date: SF.endDate, entries: SF.entries });
   }
 
   function debouncePersist() {
@@ -896,7 +897,6 @@
         persist();
         generate(false);
       } catch (err) {
-        alert('Could not read the file. Make sure it is a valid SuperFocus JSON export.');
       }
     };
     reader.readAsText(file);
@@ -928,13 +928,7 @@
   }
 
   // ── Notif time helpers ────────────────────────────────────────
-  function getNotifTimes() {
-    const saved = localStorage.getItem('sf-notif-times');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (_) {}
-    }
-    return ['06:00', '12:00', '18:00']; // defaults
-  }
+  function getNotifTimes() { return _notifTimes; }
 
   function loadTimeInputs() {
     const times = getNotifTimes();
@@ -953,10 +947,10 @@
 
   async function saveNotifTimes() {
     const times = readTimeInputs();
-    localStorage.setItem('sf-notif-times', JSON.stringify(times));
+    _notifTimes = times;
     const btn = document.getElementById('notif-save-btn');
     const status = document.getElementById('notif-status');
-    if (localStorage.getItem('sf-notifs') === '1') {
+    if (Notification.permission === 'granted') {
       try {
         const res = await callEdge({ type: 'update-times', notify_times: times });
         const data = await res.json();
@@ -965,7 +959,7 @@
         if (status) status.textContent = '⚠ Error: ' + e.message;
       }
     } else {
-      if (status) status.textContent = 'Times saved locally (enable notifications to sync)';
+      if (status) status.textContent = 'Times saved (enable notifications to sync to server)';
     }
     if (btn) {
       const orig = btn.textContent;
@@ -978,7 +972,7 @@
   async function sendTestNotif() {
     const status = document.getElementById('notif-status');
     const btn = document.getElementById('notif-test-btn');
-    if (localStorage.getItem('sf-notifs') !== '1') {
+    if (Notification.permission !== 'granted') {
       if (status) status.textContent = '⚠ Enable notifications first';
       return;
     }
@@ -1035,7 +1029,7 @@
   }
 
   async function updatePushText() {
-    if (localStorage.getItem('sf-notifs') !== '1') return;
+    if (Notification.permission !== 'granted') return;
     callEdge({ type: 'update-text', user_text: todayFocusText() });
   }
 
@@ -1044,10 +1038,9 @@
     const timesBtn = document.getElementById('notif-times-btn');
     const bar      = document.getElementById('notif-settings');
     const granted  = Notification.permission === 'granted';
-    const enabled  = localStorage.getItem('sf-notifs') === '1';
     if (btn) {
-      btn.classList.toggle('notif-on', granted && enabled);
-      btn.title = (granted && enabled) ? 'Reminders on — click to disable' : 'Daily reminders — click to enable';
+      btn.classList.toggle('notif-on', granted);
+      btn.title = granted ? 'Reminders on — click to disable' : 'Daily reminders — click to enable';
     }
     if (timesBtn) timesBtn.style.display = '';
     // Close the panel whenever notification state changes
@@ -1063,9 +1056,8 @@
   }
 
   async function toggleNotifications() {
-    const enabled = localStorage.getItem('sf-notifs') === '1';
+    const enabled = Notification.permission === 'granted';
     if (enabled) {
-      localStorage.removeItem('sf-notifs');
       await unsubscribePush();
       updateNotifBtn();
       return;
@@ -1075,8 +1067,6 @@
       alert('Please allow notifications in your phone settings for this app.');
       return;
     }
-    // Mark enabled and show UI immediately — subscribe in background
-    localStorage.setItem('sf-notifs', '1');
     updateNotifBtn();
     try {
       await subscribePush();
@@ -1086,34 +1076,29 @@
     updateNotifBtn();
   }
 
-  // ── Boot ─────────────────────────────────────────────────────
+  // -- Boot -------------------------------------------------
   (async function init() {
-    // Fetch notify_times from DB in background to keep in sync
-    callEdge({ type: 'get-config' }).then(r => r.json()).then(data => {
-      if (data.ok && data.notify_times) {
-        localStorage.setItem('sf-notif-times', JSON.stringify(data.notify_times));
+    try {
+      const res = await callEdge({ type: 'get-all' });
+      const data = await res.json();
+      if (data.ok) {
+        _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
         loadTimeInputs();
-      }
-    }).catch(() => {});
-
-    const raw = localStorage.getItem('superfocus');
-    if (raw) {
-      try {
-        const loaded = JSON.parse(raw);
-        if (loaded && loaded.startDate && loaded.endDate) {
-          SF = loaded;
-          if (typeof SF.entries !== 'object' || Array.isArray(SF.entries)) SF.entries = {};
+        if (data.start_date && data.end_date) {
+          SF.startDate = data.start_date;
+          SF.endDate   = data.end_date;
+          SF.entries   = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
           iStart.value = SF.startDate;
           iEnd.value   = SF.endDate;
           recalcDuration();
           updateSummary();
           generate(false);
           updateNotifBtn();
-          if (localStorage.getItem('sf-notifs') === '1') subscribePush();
+          if (Notification.permission === 'granted') subscribePush();
           return;
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
     // Default start = today
     iStart.value = todayStr();
     updateSummary();

@@ -22,11 +22,29 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { type } = body;
 
-    // ── Get config (notify_times) ────────────────────────────────
-    if (type === "get-config") {
-      const res = await supabaseFetch("GET", ROW + "&select=notify_times");
+    // ── Get all config ────────────────────────────────────────────
+    if (type === "get-all") {
+      const res = await supabaseFetch("GET", ROW + "&select=notify_times,start_date,end_date,entries");
       const rows: any[] = await res.json();
-      return json({ ok: true, notify_times: rows[0]?.notify_times ?? ["06:00", "12:00", "18:00"] });
+      const row = rows[0] ?? {};
+      return json({
+        ok: true,
+        notify_times: row.notify_times ?? ["06:00", "12:00", "18:00"],
+        start_date: row.start_date ?? "",
+        end_date: row.end_date ?? "",
+        entries: row.entries ?? {},
+      });
+    }
+
+    // ── Save app data (date range + entries) ──────────────────────
+    if (type === "save-data") {
+      const r = await supabaseFetch("PATCH", ROW, {
+        start_date: body.start_date,
+        end_date: body.end_date,
+        entries: body.entries,
+        updated_at: new Date().toISOString(),
+      });
+      return json({ ok: r.ok });
     }
 
     // ── Save / refresh push subscription ─────────────────────────

@@ -12,11 +12,19 @@ create table if not exists superfocus_config (
   subscription jsonb,
   user_text    text        default '',
   notify_times text[]      default '{"06:00","12:00","18:00"}',
+  start_date   text        default '',
+  end_date     text        default '',
+  entries      jsonb       default '{}',
   updated_at   timestamptz default now()
 );
 
 -- Ensure the single row exists
 insert into superfocus_config (id) values (1) on conflict do nothing;
+
+-- If table already exists, add new columns safely:
+alter table superfocus_config add column if not exists start_date text default '';
+alter table superfocus_config add column if not exists end_date text default '';
+alter table superfocus_config add column if not exists entries jsonb default '{}';
 
 -- 3. RLS (service role bypasses this)
 alter table superfocus_config enable row level security;
