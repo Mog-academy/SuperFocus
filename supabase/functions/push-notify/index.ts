@@ -22,6 +22,13 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { type } = body;
 
+    // ── Get config (notify_times) ────────────────────────────────
+    if (type === "get-config") {
+      const res = await supabaseFetch("GET", ROW + "&select=notify_times");
+      const rows: any[] = await res.json();
+      return json({ ok: true, notify_times: rows[0]?.notify_times ?? ["06:00", "12:00", "18:00"] });
+    }
+
     // ── Save / refresh push subscription ─────────────────────────
     if (type === "subscribe") {
       const r = await supabaseFetch("PATCH", ROW, {

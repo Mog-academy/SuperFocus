@@ -1087,7 +1087,15 @@
   }
 
   // ── Boot ─────────────────────────────────────────────────────
-  (function init() {
+  (async function init() {
+    // Fetch notify_times from DB in background to keep in sync
+    callEdge({ type: 'get-config' }).then(r => r.json()).then(data => {
+      if (data.ok && data.notify_times) {
+        localStorage.setItem('sf-notif-times', JSON.stringify(data.notify_times));
+        loadTimeInputs();
+      }
+    }).catch(() => {});
+
     const raw = localStorage.getItem('superfocus');
     if (raw) {
       try {
