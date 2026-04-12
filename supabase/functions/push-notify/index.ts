@@ -49,7 +49,27 @@ Deno.serve(async (req: Request) => {
         `/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
         { notify_times: body.notify_times, updated_at: new Date().toISOString() }
       );
-      return json({ ok: r.ok });
+      const text = await r.text();
+      return json({ ok: r.ok, status: r.status, body: text });
+    }
+
+    // ── Send a test notification to a single subscriber ──────────
+    if (type === "test") {
+      const subsRes = await supabaseFetch(
+        "GET",
+        `/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}&select=subscription`
+      );
+      const rows: any[] = await subsRes.json();
+      if (!rows.length) return json({ ok: false, error: "Endpoint not found in DB" });
+      await webpush.sendNotification(
+        rows[0].subscription,
+        JSON.stringify({
+          title: "SuperFocus",
+          body: "Test notification — it works!",
+          icon: "/SuperFocus/icons/icon-192.png",
+        })
+      );
+      return json({ ok: true });
     }
 
     // ── Send notifications to all subscribers (called by cron) ───

@@ -597,7 +597,9 @@
   <input type="time" class="notif-time-input" id="nt-2" value="12:00">
   <input type="time" class="notif-time-input" id="nt-3" value="18:00">
   <button class="btn btn-secondary" id="notif-save-btn" onclick="saveNotifTimes()">Save times</button>
+  <button class="btn btn-secondary" id="notif-test-btn" onclick="sendTestNotif()">🔔 Test</button>
   <button class="btn btn-secondary" onclick="toggleTimePickers()">✕</button>
+  <span id="notif-status" style="font-size:0.75rem;color:#666;width:100%;text-align:center;"></span>
 </div>
 
 <!-- Progress bar -->
@@ -952,17 +954,45 @@
   async function saveNotifTimes() {
     const times = readTimeInputs();
     localStorage.setItem('sf-notif-times', JSON.stringify(times));
+    const btn = document.getElementById('notif-save-btn');
+    const status = document.getElementById('notif-status');
     const ep = localStorage.getItem('sf-push-endpoint');
     if (ep) {
-      await callEdge({ type: 'update-times', endpoint: ep, notify_times: times });
+      try {
+        const res = await callEdge({ type: 'update-times', endpoint: ep, notify_times: times });
+        const data = await res.json();
+        if (status) status.textContent = data.ok ? '' : '⚠ DB update failed: ' + JSON.stringify(data);
+      } catch(e) {
+        if (status) status.textContent = '⚠ Error: ' + e.message;
+      }
+    } else {
+      if (status) status.textContent = 'Times saved locally (enable notifications to sync)';
     }
-    const btn = document.getElementById('notif-save-btn');
     if (btn) {
       const orig = btn.textContent;
       btn.textContent = '✓ Saved';
       btn.disabled = true;
       setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
     }
+  }
+
+  async function sendTestNotif() {
+    const ep = localStorage.getItem('sf-push-endpoint');
+    const status = document.getElementById('notif-status');
+    const btn = document.getElementById('notif-test-btn');
+    if (!ep) {
+      if (status) status.textContent = '⚠ Enable notifications first';
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const res = await callEdge({ type: 'test', endpoint: ep });
+      const data = await res.json();
+      if (status) status.textContent = data.ok ? '✓ Test sent! Check your notifications.' : '⚠ Failed: ' + JSON.stringify(data);
+    } catch(e) {
+      if (status) status.textContent = '⚠ Error: ' + e.message;
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '🔔 Test'; }
   }
 
   async function callEdge(payload) {
