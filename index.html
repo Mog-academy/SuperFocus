@@ -1033,13 +1033,14 @@
       alert('Please allow notifications in your phone settings for this app.');
       return;
     }
+    // Mark enabled and show UI immediately — subscribe in background
+    localStorage.setItem('sf-notifs', '1');
+    loadTimeInputs();
+    updateNotifBtn();
     try {
       await subscribePush();
-      localStorage.setItem('sf-notifs', '1');
-      loadTimeInputs();
     } catch (err) {
-      alert('Could not enable push notifications: ' + err);
-      return;
+      console.warn('SuperFocus: push subscribe failed', err);
     }
     updateNotifBtn();
   }
