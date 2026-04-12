@@ -132,11 +132,6 @@ Deno.serve(async (req: Request) => {
 
     // ── Send notification if time matches (called by cron) ────────
     if (type === "send") {
-      const auth = req.headers.get("Authorization") ?? "";
-      if (auth !== `Bearer ${SERVICE_KEY}`) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
-      }
-
       // Current time in Dubai (UTC+4, no DST)
       const dubaiMs = Date.now() + 4 * 60 * 60 * 1000;
       const dubaiDate = new Date(dubaiMs);
