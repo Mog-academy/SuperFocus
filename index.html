@@ -511,6 +511,7 @@
         grid-template-columns: repeat(4, 1fr);
         gap: 0.4rem;
       }
+      .ctrl-actions #notif-times-btn { grid-column: 1 / -1; }
       .ctrl-actions .btn {
         font-size: 0.72rem;
         padding: 0.5rem 0.3rem;
@@ -581,20 +582,22 @@
     </label>
     <button class="btn btn-secondary" onclick="exportFile()">↓ Export</button>
     <button class="btn btn-secondary" onclick="showSetup()">✎ Edit range</button>
-    <button class="btn btn-secondary btn-bell" id="notif-btn" onclick="toggleNotifications()" title="Daily reminders at 6am, 12pm &amp; 6pm">
+    <button class="btn btn-secondary btn-bell" id="notif-btn" onclick="toggleNotifications()" title="Daily reminders">
       🔔 Remind me
       <span class="notif-dot"></span>
     </button>
+    <button class="btn btn-secondary" id="notif-times-btn" onclick="toggleTimePickers()" style="display:none">⏰ Set times</button>
   </div>
 </div>
 
-<!-- Notification time settings -->
+<!-- Notification time settings (hidden by default, toggled by Set times btn) -->
 <div id="notif-settings">
   <span class="notif-times-label">Reminder times</span>
   <input type="time" class="notif-time-input" id="nt-1" value="06:00">
   <input type="time" class="notif-time-input" id="nt-2" value="12:00">
   <input type="time" class="notif-time-input" id="nt-3" value="18:00">
   <button class="btn btn-secondary" id="notif-save-btn" onclick="saveNotifTimes()">Save times</button>
+  <button class="btn btn-secondary" onclick="toggleTimePickers()">✕</button>
 </div>
 
 <!-- Progress bar -->
@@ -1007,17 +1010,26 @@
   }
 
   function updateNotifBtn() {
-    const btn = document.getElementById('notif-btn');
-    const bar = document.getElementById('notif-settings');
-    const granted = Notification.permission === 'granted';
-    const enabled = localStorage.getItem('sf-notifs') === '1';
+    const btn      = document.getElementById('notif-btn');
+    const timesBtn = document.getElementById('notif-times-btn');
+    const bar      = document.getElementById('notif-settings');
+    const granted  = Notification.permission === 'granted';
+    const enabled  = localStorage.getItem('sf-notifs') === '1';
     if (btn) {
       btn.classList.toggle('notif-on', granted && enabled);
-      btn.title = (granted && enabled)
-        ? 'Reminders on — click to disable'
-        : 'Daily reminders — click to enable';
+      btn.title = (granted && enabled) ? 'Reminders on — click to disable' : 'Daily reminders — click to enable';
     }
-    if (bar) bar.classList.toggle('on', granted && enabled);
+    if (timesBtn) timesBtn.style.display = (granted && enabled) ? '' : 'none';
+    // Close the panel whenever notification state changes
+    if (bar) bar.classList.remove('on');
+  }
+
+  function toggleTimePickers() {
+    const bar = document.getElementById('notif-settings');
+    if (!bar) return;
+    const opening = !bar.classList.contains('on');
+    bar.classList.toggle('on');
+    if (opening) loadTimeInputs();
   }
 
   async function toggleNotifications() {
@@ -1035,7 +1047,6 @@
     }
     // Mark enabled and show UI immediately — subscribe in background
     localStorage.setItem('sf-notifs', '1');
-    loadTimeInputs();
     updateNotifBtn();
     try {
       await subscribePush();
@@ -1060,7 +1071,7 @@
           updateSummary();
           generate(false);
           updateNotifBtn();
-          if (localStorage.getItem('sf-notifs') === '1') { subscribePush(); loadTimeInputs(); }
+          if (localStorage.getItem('sf-notifs') === '1') subscribePush();
           return;
         }
       } catch (_) {}
