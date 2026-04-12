@@ -1,4 +1,4 @@
-const CACHE = 'superfocus-v4';
+const CACHE = 'superfocus-v5';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
@@ -44,7 +44,7 @@ self.addEventListener('fetch', e => {
 });
 
 // ── Notification scheduling ───────────────────────────────────
-const NOTIF_HOURS = [6, 12, 18]; // 6am, 12pm, 6pm
+// TEST MODE: every 30 seconds
 let notifTimers = [];
 
 self.addEventListener('message', e => {
@@ -54,34 +54,24 @@ self.addEventListener('message', e => {
 });
 
 function scheduleNotifications(focusText) {
-  // Clear any previously scheduled timers
-  notifTimers.forEach(id => clearTimeout(id));
+  notifTimers.forEach(id => clearInterval(id));
   notifTimers = [];
 
-  const now = new Date();
   const body = focusText
     ? `Today's focus on: ${focusText}`
     : 'Time to update your SuperFocus for today!';
 
-  NOTIF_HOURS.forEach(hour => {
-    const target = new Date(now);
-    target.setHours(hour, 0, 0, 0);
-    const ms = target - now;
-
-    if (ms > 0) {
-      const id = setTimeout(() => {
-        self.registration.showNotification('SuperFocus', {
-          body,
-          icon: BASE + '/icons/icon-192.png',
-          badge: BASE + '/icons/icon-192.png',
-          tag: `superfocus-${hour}`,
-          renotify: true,
-          vibrate: [200, 100, 200]
-        });
-      }, ms);
-      notifTimers.push(id);
-    }
-  });
+  const id = setInterval(() => {
+    self.registration.showNotification('SuperFocus', {
+      body,
+      icon: BASE + '/icons/icon-192.png',
+      badge: BASE + '/icons/icon-192.png',
+      tag: 'superfocus-test',
+      renotify: true,
+      vibrate: [200, 100, 200]
+    });
+  }, 30000);
+  notifTimers.push(id);
 }
 
 // Re-open the app when notification is tapped
