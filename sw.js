@@ -1,8 +1,9 @@
-const CACHE = 'superfocus-v3';
+const CACHE = 'superfocus-v4';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
   BASE + '/index.html',
+  BASE + '/404.html',
   BASE + '/manifest.json',
   BASE + '/icons/icon-192.png',
   BASE + '/icons/icon-512.png'

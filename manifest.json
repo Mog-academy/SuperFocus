@@ -2,7 +2,7 @@
   "name": "SuperFocus",
   "short_name": "SuperFocus",
   "description": "One tile per day — stay on track",
-  "start_url": "/SuperFocus/",
+  "start_url": "./index.html",
   "scope": "/SuperFocus/",
   "display": "standalone",
   "orientation": "portrait-primary",
