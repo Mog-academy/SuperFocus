@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
         endpoint: subscription.endpoint,
         subscription,
         user_text: user_text ?? "",
-        notify_hours: body.notify_hours ?? [6, 12, 18],
+        notify_times: body.notify_times ?? ["06:00", "12:00", "18:00"],
         updated_at: new Date().toISOString(),
       }, { "Prefer": "resolution=merge-duplicates" });
       return json({ ok: r.ok });
@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
       const r = await supabaseFetch(
         "PATCH",
         `/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
-        { notify_hours: body.notify_hours, updated_at: new Date().toISOString() }
+        { notify_times: body.notify_times, updated_at: new Date().toISOString() }
       );
       return json({ ok: r.ok });
     }
@@ -60,8 +60,10 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
       }
 
-      // Current hour in Dubai (UTC+4, no DST)
-      const dubaiHour = ((new Date().getUTCHours() + 4) % 24);
+      // Current HH:MM in Dubai (UTC+4, no DST)
+      const dubaiMs = Date.now() + 4 * 60 * 60 * 1000;
+      const dubaiDate = new Date(dubaiMs);
+      const dubaiHHMM = `${String(dubaiDate.getUTCHours()).padStart(2, '0')}:${String(dubaiDate.getUTCMinutes()).padStart(2, '0')}`;
 
       const subsRes = await supabaseFetch("GET", "/rest/v1/push_subscriptions");
       const subs: any[] = await subsRes.json();
@@ -70,9 +72,9 @@ Deno.serve(async (req: Request) => {
       const toDelete: string[] = [];
 
       for (const row of subs) {
-        // Check if this subscriber wants a notification at the current Dubai hour
-        const wantedHours: number[] = Array.isArray(row.notify_hours) ? row.notify_hours : [6, 12, 18];
-        if (!wantedHours.includes(dubaiHour)) continue;
+        // Check if this subscriber wants a notification at the current Dubai HH:MM
+        const wantedTimes: string[] = Array.isArray(row.notify_times) ? row.notify_times : ["06:00", "12:00", "18:00"];
+        if (!wantedTimes.includes(dubaiHHMM)) continue;
 
         const notifBody = row.user_text?.trim()
           ? `Today's focus on: ${row.user_text}`
@@ -102,7 +104,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      return json({ sent, deleted: toDelete.length, dubaiHour });
+      return json({ sent, deleted: toDelete.length, dubaiHHMM });
     }
 
     return new Response(JSON.stringify({ error: "Unknown type" }), { status: 400, headers: cors });

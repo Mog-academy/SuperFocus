@@ -926,36 +926,35 @@
   }
 
   // ── Notif time helpers ────────────────────────────────────────
-  function getNotifHours() {
-    const saved = localStorage.getItem('sf-notif-hours');
+  function getNotifTimes() {
+    const saved = localStorage.getItem('sf-notif-times');
     if (saved) {
       try { return JSON.parse(saved); } catch (_) {}
     }
-    return [6, 12, 18]; // defaults
+    return ['06:00', '12:00', '18:00']; // defaults
   }
 
   function loadTimeInputs() {
-    const hours = getNotifHours();
+    const times = getNotifTimes();
     ['nt-1','nt-2','nt-3'].forEach((id, i) => {
       const el = document.getElementById(id);
-      if (el) el.value = String(hours[i] ?? 6).padStart(2,'0') + ':00';
+      if (el) el.value = times[i] ?? (i === 0 ? '06:00' : i === 1 ? '12:00' : '18:00');
     });
   }
 
   function readTimeInputs() {
     return ['nt-1','nt-2','nt-3'].map(id => {
       const el = document.getElementById(id);
-      if (!el) return 6;
-      return parseInt(el.value.split(':')[0], 10);
+      return el ? el.value : '06:00';
     });
   }
 
   async function saveNotifTimes() {
-    const hours = readTimeInputs();
-    localStorage.setItem('sf-notif-hours', JSON.stringify(hours));
+    const times = readTimeInputs();
+    localStorage.setItem('sf-notif-times', JSON.stringify(times));
     const ep = localStorage.getItem('sf-push-endpoint');
     if (ep) {
-      await callEdge({ type: 'update-times', endpoint: ep, notify_hours: hours });
+      await callEdge({ type: 'update-times', endpoint: ep, notify_times: times });
     }
     const btn = document.getElementById('notif-save-btn');
     if (btn) {
@@ -991,7 +990,7 @@
       type: 'subscribe',
       subscription: sub.toJSON(),
       user_text: todayFocusText(),
-      notify_hours: getNotifHours(),
+      notify_times: getNotifTimes(),
     });
     return sub;
   }
