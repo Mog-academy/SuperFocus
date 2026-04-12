@@ -582,6 +582,7 @@
     </label>
     <button class="btn btn-secondary" onclick="exportFile()">↓ Export</button>
     <button class="btn btn-secondary" onclick="showSetup()">✎ Edit range</button>
+    <button class="btn btn-secondary" id="refresh-btn" onclick="refreshFromDB()" title="Fetch latest data from server">↻ Refresh</button>
     <button class="btn btn-secondary btn-bell" id="notif-btn" onclick="toggleNotifications()" title="Daily reminders">
       🔔 Remind me
       <span class="notif-dot"></span>
@@ -1079,6 +1080,29 @@
   }
 
   // -- Boot -------------------------------------------------
+  async function refreshFromDB() {
+    const btn = document.getElementById('refresh-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '↻ …'; }
+    try {
+      const res = await callEdge({ type: 'get-all' });
+      const data = await res.json();
+      if (data.ok) {
+        _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
+        loadTimeInputs();
+        if (data.start_date && data.end_date) {
+          SF.startDate = data.start_date;
+          SF.endDate   = data.end_date;
+          SF.entries   = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
+          iStart.value = SF.startDate;
+          iEnd.value   = SF.endDate;
+          recalcDuration();
+          updateSummary();
+          generate(false);
+        }
+      }
+    } catch (_) {}
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+  }
   (async function init() {
     try {
       const res = await callEdge({ type: 'get-all' });
