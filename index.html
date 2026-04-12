@@ -984,7 +984,13 @@
       if (status) status.textContent = '⚠ Enable notifications first';
       return;
     }
-    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    if (btn) { btn.disabled = true; }
+    // Countdown so user can switch away from the tab before notification fires
+    for (let i = 5; i > 0; i--) {
+      if (btn) btn.textContent = `⏳ ${i}s`;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (btn) btn.textContent = '…';
     try {
       const res = await callEdge({ type: 'test', endpoint: ep });
       const data = await res.json();
