@@ -15,6 +15,7 @@ create table if not exists superfocus_config (
   start_date   text        default '',
   end_date     text        default '',
   entries      jsonb       default '{}',
+  last_send_log text       default '',
   updated_at   timestamptz default now()
 );
 
@@ -25,6 +26,7 @@ insert into superfocus_config (id) values (1) on conflict do nothing;
 alter table superfocus_config add column if not exists start_date text default '';
 alter table superfocus_config add column if not exists end_date text default '';
 alter table superfocus_config add column if not exists entries jsonb default '{}';
+alter table superfocus_config add column if not exists last_send_log text default '';
 
 -- 3. RLS (service role bypasses this)
 alter table superfocus_config enable row level security;

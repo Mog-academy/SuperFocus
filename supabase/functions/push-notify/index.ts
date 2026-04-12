@@ -110,6 +110,7 @@ Deno.serve(async (req: Request) => {
         timeMatches,
         userText: row?.user_text ?? null,
         dbRowFound: !!row,
+        lastSendLog: row?.last_send_log ?? "(no log yet)",
       });
     }
 
@@ -149,7 +150,10 @@ Deno.serve(async (req: Request) => {
 
       const res = await supabaseFetch("GET", ROW);
       const rows: any[] = await res.json();
-      if (!rows.length || !rows[0].subscription) return json({ sent: 0, reason: "No subscription", dubaiHHMM });
+      if (!rows.length || !rows[0].subscription) {
+        await supabaseFetch("PATCH", ROW, { last_send_log: `No subscription at ${dubaiHHMM}` });
+        return json({ sent: 0, reason: "No subscription", dubaiHHMM });
+      }
 
       const row = rows[0];
       const wantedTimes: string[] = Array.isArray(row.notify_times) ? row.notify_times : ["06:00", "12:00", "18:00"];
@@ -157,21 +161,32 @@ Deno.serve(async (req: Request) => {
         const tm = toMinutes(t);
         return tm >= dubaiMinutes && tm < dubaiMinutes + 5;
       });
-      if (!matches) return json({ sent: 0, reason: "Not a notification time", dubaiHHMM });
+      if (!matches) {
+        await supabaseFetch("PATCH", ROW, { last_send_log: `Cron reached at ${dubaiHHMM}, no match (times: ${JSON.stringify(wantedTimes)})` });
+        return json({ sent: 0, reason: "Not a notification time", dubaiHHMM });
+      }
 
       const notifBody = row.user_text?.trim()
         ? `Today's focus on: ${row.user_text}`
         : "Open SuperFocus — time to log today!";
 
-      await webpush.sendNotification(
-        row.subscription,
-        JSON.stringify({
-          title: "SuperFocus",
-          body: notifBody,
-          icon: "/SuperFocus/icons/icon-192.png",
-        })
-      );
-      return json({ sent: 1, dubaiHHMM });
+      let sendResult = "";
+      try {
+        await webpush.sendNotification(
+          row.subscription,
+          JSON.stringify({
+            title: "SuperFocus",
+            body: notifBody,
+            icon: "/SuperFocus/icons/icon-192.png",
+          })
+        );
+        sendResult = `✓ Sent at ${dubaiHHMM}`;
+      } catch (err: any) {
+        sendResult = `✗ webpush error at ${dubaiHHMM}: ${err?.message ?? err}`;
+      }
+
+      await supabaseFetch("PATCH", ROW, { last_send_log: sendResult });
+      return json({ sent: 1, dubaiHHMM, sendResult });
     }
 
     return new Response(JSON.stringify({ error: "Unknown type" }), { status: 400, headers: cors });

@@ -1011,6 +1011,7 @@
         `notify_times in DB: ${JSON.stringify(d.notifyTimes)}`,
         `Matches now: ${d.timeMatches.map(t => `${t.time}=${t.wouldFire}`).join(', ')}`,
         `user_text: ${d.userText || '(empty)'}`,
+        `Last cron log: ${d.lastSendLog}`,
       ];
       if (status) status.textContent = lines.join('\n');
     } catch(e) {
