@@ -238,6 +238,21 @@
     }
     .ctrl-actions { display: flex; gap: 0.6rem; }
 
+    /* ── Notification bell ── */
+    .btn-bell { position: relative; }
+    .btn-bell.notif-on  { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-bell.notif-on:hover { background: #111; }
+    .notif-dot {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      border: 1.5px solid var(--surface);
+      display: none;
+    }
+    .notif-on .notif-dot { display: block; }
+
     /* ── Progress ── */
     #prog-bar {
       max-width: 1400px;
@@ -454,7 +469,7 @@
       }
       .ctrl-actions {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 0.4rem;
       }
       .ctrl-actions .btn {
@@ -524,6 +539,10 @@
     </label>
     <button class="btn btn-secondary" onclick="exportFile()">↓ Export</button>
     <button class="btn btn-secondary" onclick="showSetup()">✎ Edit range</button>
+    <button class="btn btn-secondary btn-bell" id="notif-btn" onclick="toggleNotifications()" title="Daily reminders at 6am, 12pm &amp; 6pm">
+      🔔 Remind me
+      <span class="notif-dot"></span>
+    </button>
   </div>
 </div>
 
@@ -704,6 +723,8 @@
         wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
         tile.classList.toggle('has-content', ta.value.length > 0);
         debouncePersist();
+        // Re-schedule notifications when today's tile text changes
+        if (ds === today && localStorage.getItem('sf-notifs') === '1') sendTodayToSW();
       });
 
       if (animate) {
@@ -832,6 +853,53 @@
     return t ? t.split(/\s+/).length : 0;
   }
 
+  // ── Notifications ─────────────────────────────────────────────
+  function todayFocusText() {
+    const t = (SF.entries[todayStr()] || '').trim();
+    // Use first non-empty line, max 120 chars
+    const line = t.split('\n').find(l => l.trim()) || '';
+    return line.slice(0, 120);
+  }
+
+  function sendTodayToSW() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(reg => {
+      if (reg.active) reg.active.postMessage({ type: 'SCHEDULE_NOTIFS', text: todayFocusText() });
+    });
+  }
+
+  function updateNotifBtn() {
+    const btn = document.getElementById('notif-btn');
+    if (!btn) return;
+    const granted = Notification.permission === 'granted';
+    const enabled = localStorage.getItem('sf-notifs') === '1';
+    btn.classList.toggle('notif-on', granted && enabled);
+    btn.title = (granted && enabled)
+      ? 'Reminders on: 6am, 12pm, 6pm — click to disable'
+      : 'Daily reminders at 6am, 12pm & 6pm';
+  }
+
+  async function toggleNotifications() {
+    if (!('Notification' in window)) {
+      alert('Notifications are not supported in this browser.');
+      return;
+    }
+    const enabled = localStorage.getItem('sf-notifs') === '1';
+    if (enabled) {
+      localStorage.removeItem('sf-notifs');
+      updateNotifBtn();
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      localStorage.setItem('sf-notifs', '1');
+      sendTodayToSW();
+    } else {
+      alert('Please allow notifications in your browser/phone settings to enable reminders.');
+    }
+    updateNotifBtn();
+  }
+
   // ── Boot ─────────────────────────────────────────────────────
   (function init() {
     const raw = localStorage.getItem('superfocus');
@@ -846,6 +914,8 @@
           recalcDuration();
           updateSummary();
           generate(false);
+          updateNotifBtn();
+          if (localStorage.getItem('sf-notifs') === '1') sendTodayToSW();
           return;
         }
       } catch (_) {}
@@ -853,6 +923,7 @@
     // Default start = today
     iStart.value = todayStr();
     updateSummary();
+    updateNotifBtn();
   })();
 
   // ── Service Worker ────────────────────────────────────────────

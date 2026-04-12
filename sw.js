@@ -26,7 +26,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (!e.request.url.startsWith(self.location.origin)) return;
 
-  // For navigation requests always return index.html (handles /SuperFocus/ and any sub-path)
   if (e.request.mode === 'navigate') {
     e.respondWith(
       caches.match(BASE + '/index.html')
@@ -35,12 +34,65 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for assets
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
       const clone = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, clone));
       return res;
     }))
+  );
+});
+
+// ── Notification scheduling ───────────────────────────────────
+const NOTIF_HOURS = [6, 12, 18]; // 6am, 12pm, 6pm
+let notifTimers = [];
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SCHEDULE_NOTIFS') {
+    scheduleNotifications(e.data.text);
+  }
+});
+
+function scheduleNotifications(focusText) {
+  // Clear any previously scheduled timers
+  notifTimers.forEach(id => clearTimeout(id));
+  notifTimers = [];
+
+  const now = new Date();
+  const body = focusText
+    ? `Today's focus on: ${focusText}`
+    : 'Time to update your SuperFocus for today!';
+
+  NOTIF_HOURS.forEach(hour => {
+    const target = new Date(now);
+    target.setHours(hour, 0, 0, 0);
+    const ms = target - now;
+
+    if (ms > 0) {
+      const id = setTimeout(() => {
+        self.registration.showNotification('SuperFocus', {
+          body,
+          icon: BASE + '/icons/icon-192.png',
+          badge: BASE + '/icons/icon-192.png',
+          tag: `superfocus-${hour}`,
+          renotify: true,
+          vibrate: [200, 100, 200]
+        });
+      }, ms);
+      notifTimers.push(id);
+    }
+  });
+}
+
+// Re-open the app when notification is tapped
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const client of list) {
+        if (client.url.includes('/SuperFocus') && 'focus' in client) return client.focus();
+      }
+      return clients.openWindow(BASE + '/');
+    })
   );
 });
