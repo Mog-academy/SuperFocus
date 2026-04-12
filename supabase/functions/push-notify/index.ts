@@ -60,10 +60,17 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
       }
 
-      // Current HH:MM in Dubai (UTC+4, no DST)
+      // Current time in Dubai (UTC+4, no DST), expressed as minutes since midnight
       const dubaiMs = Date.now() + 4 * 60 * 60 * 1000;
       const dubaiDate = new Date(dubaiMs);
+      const dubaiMinutes = dubaiDate.getUTCHours() * 60 + dubaiDate.getUTCMinutes();
       const dubaiHHMM = `${String(dubaiDate.getUTCHours()).padStart(2, '0')}:${String(dubaiDate.getUTCMinutes()).padStart(2, '0')}`;
+
+      // Helper: parse "HH:MM" to minutes since midnight
+      const toMinutes = (hhmm: string) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+      };
 
       const subsRes = await supabaseFetch("GET", "/rest/v1/push_subscriptions");
       const subs: any[] = await subsRes.json();
@@ -72,9 +79,13 @@ Deno.serve(async (req: Request) => {
       const toDelete: string[] = [];
 
       for (const row of subs) {
-        // Check if this subscriber wants a notification at the current Dubai HH:MM
+        // Fire if any stored time falls within the current 5-minute cron window
         const wantedTimes: string[] = Array.isArray(row.notify_times) ? row.notify_times : ["06:00", "12:00", "18:00"];
-        if (!wantedTimes.includes(dubaiHHMM)) continue;
+        const matches = wantedTimes.some(t => {
+          const tm = toMinutes(t);
+          return tm >= dubaiMinutes && tm < dubaiMinutes + 5;
+        });
+        if (!matches) continue;
 
         const notifBody = row.user_text?.trim()
           ? `Today's focus on: ${row.user_text}`
