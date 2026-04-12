@@ -586,7 +586,7 @@
       🔔 Remind me
       <span class="notif-dot"></span>
     </button>
-    <button class="btn btn-secondary" id="notif-times-btn" onclick="toggleTimePickers()" style="display:none">⏰ Set times</button>
+    <button class="btn btn-secondary" id="notif-times-btn" onclick="toggleTimePickers()">⏰ Set times</button>
   </div>
 </div>
 
@@ -1019,7 +1019,7 @@
       btn.classList.toggle('notif-on', granted && enabled);
       btn.title = (granted && enabled) ? 'Reminders on — click to disable' : 'Daily reminders — click to enable';
     }
-    if (timesBtn) timesBtn.style.display = (granted && enabled) ? '' : 'none';
+    if (timesBtn) timesBtn.style.display = '';
     // Close the panel whenever notification state changes
     if (bar) bar.classList.remove('on');
   }
