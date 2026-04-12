@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SuperFocus</title>
+  <style>
+    :root {
+      --bg:            #f0f0ee;
+      --surface:       #fafaf9;
+      --surface2:      #ebebea;
+      --border:        #d6d5d2;
+      --border-strong: #a8a7a3;
+      --accent:        #2e2e2e;
+      --accent-light:  #3d3d3d;
+      --accent-glow:   rgba(46,46,46,0.12);
+      --pink:          #555550;
+      --green:         #2f7a55;
+      --text:          #1a1a18;
+      --text-sub:      #3d3d3a;
+      --text-muted:    #9a9993;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    html, body { max-width: 100%; overflow-x: hidden; }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 2.5rem 2rem 1.5rem;
+      text-align: center;
+    }
+    .logo {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #3d3d3d 0%, #1a1a18 45%, #555550 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+    .tagline {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* ── Setup Panel ── */
+    #setup-panel {
+      max-width: 640px;
+      margin: 1.5rem auto 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+    }
+    #setup-panel h2 {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+    }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 0.75rem;
+      align-items: end;
+    }
+    .field { display: flex; flex-direction: column; gap: 0.4rem; }
+    .field label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .field input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 0.6rem 0.8rem;
+      font-family: inherit;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .field input::-webkit-calendar-picker-indicator {
+      filter: invert(0.3);
+    }
+    .dur-wrap {
+      display: flex;
+      align-items: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      overflow: hidden;
+    }
+    .dur-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .dur-wrap input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 0.6rem 0.8rem;
+      font-family: inherit;
+      min-width: 0;
+    }
+    .dur-wrap input:focus { outline: none; box-shadow: none; }
+    .dur-unit {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      padding: 0 0.7rem;
+      border-left: 1px solid var(--border);
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .arrow { color: var(--text-muted); font-size: 1.1rem; padding-bottom: 0.7rem; }
+
+    .setup-footer {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    #summary-text {
+      color: var(--text-sub);
+      font-size: 0.875rem;
+    }
+    #summary-text strong { color: var(--text); }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 0.6rem 1.4rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: inherit;
+      transition: all 0.18s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #111111;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px var(--accent-glow);
+    }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text-sub);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+    .btn-file {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .btn-file input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 0;
+    }
+
+    /* ── Controls Bar ── */
+    #controls-bar {
+      max-width: 1400px;
+      margin: 2rem auto 0;
+      padding: 0 2rem;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    #controls-bar.on { display: flex; }
+
+    .stats { display: flex; gap: 1.5rem; }
+    .stat-val {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent-light);
+      line-height: 1;
+    }
+    .stat-lbl {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .ctrl-actions { display: flex; gap: 0.6rem; }
+
+    /* ── Progress ── */
+    #prog-bar {
+      max-width: 1400px;
+      margin: 1.25rem auto 0;
+      padding: 0 2rem;
+      display: none;
+    }
+    #prog-bar.on { display: block; }
+    .prog-track {
+      height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3d3d3d, #888883);
+      border-radius: 4px;
+      transition: width 0.6s ease;
+    }
+    #prog-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+    }
+
+    /* ── Grid ── */
+    #tiles-grid {
+      max-width: 1400px;
+      margin: 1.5rem auto 0;
+      padding: 0 2rem 5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.85rem;
+    }
+
+    /* Month header */
+    .month-sep {
+      grid-column: 1 / -1;
+      padding: 0.6rem 0 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .month-sep-name {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--text-muted);
+    }
+    .month-sep-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Tile ── */
+    .tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      min-height: 200px;
+    }
+    .tile:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+    }
+    .tile:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow), 0 6px 24px rgba(0,0,0,0.3);
+    }
+    .tile.weekend { background: #e8e8e5; }
+    .tile.today {
+      border-color: var(--accent);
+      background: #e4e4df;
+    }
+    .today-badge {
+      position: absolute;
+      top: 0.55rem;
+      right: 0.55rem;
+      font-size: 0.5rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #fff;
+      background: var(--accent);
+      border: 1px solid var(--accent-light);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tile-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .tile-dayname {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-bottom: 0.1rem;
+    }
+    .tile-daynum {
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--text-sub);
+      line-height: 1;
+    }
+    .tile.today .tile-daynum { color: var(--accent-light); }
+    .tile-month {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 0.1rem;
+    }
+    .tile-idx {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .tile textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      resize: none;
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.6;
+      font-family: inherit;
+      min-height: 90px;
+    }
+    .tile textarea:focus { outline: none; }
+    .tile textarea::placeholder { color: var(--text-muted); font-style: italic; }
+    .tile-foot {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .wc {
+      font-size: 0.58rem;
+      color: var(--text-muted);
+    }
+    .tile.has-content { border-color: #a8a7a3; }
+    .tile.has-content .tile-daynum { color: var(--text); }
+
+    /* ── Save indicator ── */
+    #save-ind {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--green);
+      color: var(--green);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+    #save-ind.show { opacity: 1; }
+
+    /* ── Empty state ── */
+    #empty-state {
+      max-width: 400px;
+      margin: 4rem auto;
+      text-align: center;
+      display: none;
+    }
+    #empty-state.on { display: block; }
+    #empty-state p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.7; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .row3 {
+        grid-template-columns: 1fr;
+      }
+      .arrow { display: none; }
+      .logo { font-size: 2.2rem; }
+      #tiles-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.4rem;
+        padding: 0 0.5rem 4rem;
+        width: 100%;
+      }
+      .tile {
+        min-height: 130px;
+        padding: 0.6rem;
+        border-radius: 8px;
+      }
+      .tile-daynum { font-size: 1.1rem !important; }
+      .tile-dayname, .tile-month, .tile-idx { font-size: 0.52rem !important; }
+      .tile textarea { font-size: 0.72rem; min-height: 55px; }
+      .wc { font-size: 0.5rem; }
+      .stats { gap: 1rem; }
+      .month-sep-name { font-size: 0.6rem; }
+
+      #controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0 0.5rem;
+        gap: 0.75rem;
+      }
+      .ctrl-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+      }
+      .ctrl-actions .btn {
+        font-size: 0.72rem;
+        padding: 0.5rem 0.3rem;
+        justify-content: center;
+      }
+      #prog-bar { padding: 0 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SuperFocus</div>
+  <div class="tagline">One tile per day — stay on track</div>
+</header>
+
+<!-- Setup panel -->
+<div id="setup-panel">
+  <h2>Set your focus period</h2>
+  <div class="row3">
+    <div class="field">
+      <label>Start date</label>
+      <input type="date" id="i-start">
+    </div>
+    <span class="arrow">→</span>
+    <div class="field">
+      <label>Duration</label>
+      <div class="dur-wrap">
+        <input type="number" id="i-dur" min="0.1" step="0.1" placeholder="e.g. 2.5">
+        <span class="dur-unit">months</span>
+      </div>
+    </div>
+    <span class="arrow">→</span>
+    <div class="field">
+      <label>End date</label>
+      <input type="date" id="i-end">
+    </div>
+  </div>
+  <div class="setup-footer">
+    <span id="summary-text">Enter a start date and duration or end date</span>
+    <button class="btn btn-primary" id="gen-btn" onclick="generate()">Generate tiles →</button>
+  </div>
+</div>
+
+<!-- Controls bar (hidden until tiles exist) -->
+<div id="controls-bar">
+  <div class="stats">
+    <div>
+      <div class="stat-val" id="s-days">—</div>
+      <div class="stat-lbl">Days</div>
+    </div>
+    <div>
+      <div class="stat-val" id="s-filled">—</div>
+      <div class="stat-lbl">Filled</div>
+    </div>
+    <div>
+      <div class="stat-val" id="s-words">—</div>
+      <div class="stat-lbl">Words</div>
+    </div>
+  </div>
+  <div class="ctrl-actions">
+    <label class="btn btn-secondary btn-file" title="Import a SuperFocus JSON file">
+      ↑ Import
+      <input type="file" id="import-input" accept=".json" onchange="importFile(this)">
+    </label>
+    <button class="btn btn-secondary" onclick="exportFile()">↓ Export</button>
+    <button class="btn btn-secondary" onclick="showSetup()">✎ Edit range</button>
+  </div>
+</div>
+
+<!-- Progress bar -->
+<div id="prog-bar">
+  <div class="prog-track">
+    <div class="prog-fill" id="prog-fill" style="width:0%"></div>
+  </div>
+  <div id="prog-label"></div>
+</div>
+
+<!-- Tiles -->
+<div id="tiles-grid"></div>
+
+<!-- Save indicator -->
+<div id="save-ind">✓ Saved</div>
+
+<script>
+  const DAYS_PER_MONTH = 30.4375;
+  let saveTimer = null;
+  let hideTimer = null;
+
+  // In-memory state
+  let SF = { startDate: null, endDate: null, entries: {} };
+
+  // ── Date helpers ──────────────────────────────────────────────
+  function toDate(str) {
+    if (!str) return null;
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function toStr(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function diffDays(a, b) {
+    // b - a in whole days
+    return Math.round((b - a) / 86400000);
+  }
+
+  function addDays(date, n) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  function todayStr() {
+    return toStr(new Date());
+  }
+
+  // ── Input wiring ──────────────────────────────────────────────
+  const iStart = document.getElementById('i-start');
+  const iEnd   = document.getElementById('i-end');
+  const iDur   = document.getElementById('i-dur');
+
+  iStart.addEventListener('change', () => {
+    const s = toDate(iStart.value);
+    const dur = parseFloat(iDur.value);
+    if (s && dur > 0) {
+      iEnd.value = toStr(addDays(s, Math.round(dur * DAYS_PER_MONTH)));
+    }
+    updateSummary();
+  });
+
+  iEnd.addEventListener('change', () => {
+    recalcDuration();
+    updateSummary();
+  });
+
+  iDur.addEventListener('input', () => {
+    const s = toDate(iStart.value);
+    const dur = parseFloat(iDur.value);
+    if (s && dur > 0) {
+      iEnd.value = toStr(addDays(s, Math.round(dur * DAYS_PER_MONTH)));
+    }
+    updateSummary();
+  });
+
+  function recalcDuration() {
+    const s = toDate(iStart.value);
+    const e = toDate(iEnd.value);
+    if (s && e && e > s) {
+      iDur.value = (diffDays(s, e) / DAYS_PER_MONTH).toFixed(2);
+    }
+  }
+
+  function updateSummary() {
+    const s = toDate(iStart.value);
+    const e = toDate(iEnd.value);
+    const el = document.getElementById('summary-text');
+    if (!s || !e) {
+      el.textContent = 'Enter a start date and duration or end date';
+      return;
+    }
+    if (e <= s) {
+      el.textContent = 'End date must be after start date';
+      return;
+    }
+    const days = diffDays(s, e) + 1;
+    const months = (days / DAYS_PER_MONTH).toFixed(1);
+    el.innerHTML = `<strong>${days} days</strong> &nbsp;·&nbsp; ${months} months`;
+  }
+
+  // ── Generate ──────────────────────────────────────────────────
+  function generate(animate = true) {
+    const sv = iStart.value;
+    const ev = iEnd.value;
+    if (!sv || !ev) return;
+    const s = toDate(sv);
+    const e = toDate(ev);
+    if (e <= s) { updateSummary(); return; }
+
+    SF.startDate = sv;
+    SF.endDate   = ev;
+    persist();
+
+    const grid = document.getElementById('tiles-grid');
+    grid.innerHTML = '';
+
+    const today = todayStr();
+    const total  = diffDays(s, e) + 1;
+    const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    let prevMonth = -1;
+
+    for (let i = 0; i < total; i++) {
+      const d       = addDays(s, i);
+      const ds      = toStr(d);
+      const dow     = d.getDay();
+      const mon     = d.getMonth();
+      const weekend = dow === 0 || dow === 6;
+      const isToday = ds === today;
+
+      // Month separator
+      if (mon !== prevMonth) {
+        prevMonth = mon;
+        const sep = document.createElement('div');
+        sep.className = 'month-sep';
+        sep.innerHTML = `<span class="month-sep-name">${MONTHS[mon]} ${d.getFullYear()}</span><span class="month-sep-line"></span>`;
+        grid.appendChild(sep);
+      }
+
+      const tile = document.createElement('div');
+      tile.className = 'tile' + (weekend ? ' weekend' : '') + (isToday ? ' today' : '');
+      tile.dataset.date = ds;
+
+      tile.innerHTML = `
+        ${isToday ? '<span class="today-badge">Today</span>' : ''}
+        <div class="tile-head">
+          <div>
+            <div class="tile-dayname">${DAYS[dow]}</div>
+            <div class="tile-daynum">${d.getDate()}</div>
+            <div class="tile-month">${MONTHS_SHORT[mon]}</div>
+          </div>
+          <div class="tile-idx">#${i + 1}</div>
+        </div>
+        <textarea placeholder="Focus notes…"></textarea>
+        <div class="tile-foot"><span class="wc">0 words</span></div>
+      `;
+
+      const ta  = tile.querySelector('textarea');
+      const wcEl = tile.querySelector('.wc');
+      const saved = SF.entries[ds] || '';
+      ta.value = saved;
+      const wc = wordCount(saved);
+      wcEl.textContent = wc + ' word' + (wc !== 1 ? 's' : '');
+      if (saved) tile.classList.add('has-content');
+
+      ta.addEventListener('input', () => {
+        SF.entries[ds] = ta.value;
+        const n = wordCount(ta.value);
+        wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
+        tile.classList.toggle('has-content', ta.value.length > 0);
+        debouncePersist();
+      });
+
+      if (animate) {
+        const delay = Math.min(i * 10, 400); // cap delay at 400ms for long lists
+        tile.style.opacity = '0';
+        tile.style.transform = 'translateY(12px)';
+        tile.style.transition = `opacity 0.3s ${delay}ms, transform 0.3s ${delay}ms`;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          tile.style.opacity = '1';
+          tile.style.transform = 'translateY(0)';
+        }));
+      }
+
+      grid.appendChild(tile);
+    }
+
+    // Hide setup, show controls + progress
+    document.getElementById('setup-panel').style.display = 'none';
+    document.getElementById('controls-bar').classList.add('on');
+    document.getElementById('prog-bar').classList.add('on');
+    refreshStats();
+    refreshProgress();
+  }
+
+  function showSetup() {
+    document.getElementById('setup-panel').style.display = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Stats & progress ──────────────────────────────────────────
+  function refreshStats() {
+    const tiles = document.querySelectorAll('.tile');
+    let filled = 0, words = 0;
+    tiles.forEach(t => {
+      const v = t.querySelector('textarea').value;
+      if (v.trim()) { filled++; words += wordCount(v); }
+    });
+    document.getElementById('s-days').textContent   = tiles.length;
+    document.getElementById('s-filled').textContent = filled;
+    document.getElementById('s-words').textContent  = words;
+  }
+
+  function refreshProgress() {
+    const tiles = document.querySelectorAll('.tile');
+    const total = tiles.length;
+    if (!total) return;
+    const today = todayStr();
+    let past = 0;
+    tiles.forEach(t => { if (t.dataset.date <= today) past++; });
+    const pct = Math.round((past / total) * 100);
+    document.getElementById('prog-fill').style.width = pct + '%';
+    document.getElementById('prog-label').textContent =
+      `${pct}% of period elapsed — day ${past} of ${total}`;
+  }
+
+  // ── Persist ───────────────────────────────────────────────────
+  function persist() {
+    try { localStorage.setItem('superfocus', JSON.stringify(SF)); } catch (_) {}
+  }
+
+  function debouncePersist() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      persist();
+      refreshStats();
+      flashSaved();
+    }, 600);
+  }
+
+  function flashSaved() {
+    const el = document.getElementById('save-ind');
+    el.classList.add('show');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => el.classList.remove('show'), 2000);
+  }
+
+  // ── Export ────────────────────────────────────────────────────
+  function exportFile() {
+    const json = JSON.stringify(SF, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `superfocus_${SF.startDate ?? 'data'}_to_${SF.endDate ?? 'data'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Import ────────────────────────────────────────────────────
+  function importFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (typeof parsed !== 'object' || !parsed.startDate || !parsed.endDate) {
+          alert('This does not look like a valid SuperFocus file.');
+          return;
+        }
+        SF = { startDate: null, endDate: null, entries: {}, ...parsed };
+        // Sanitise: entries must be an object of string→string
+        if (typeof SF.entries !== 'object' || Array.isArray(SF.entries)) SF.entries = {};
+        for (const k of Object.keys(SF.entries)) {
+          if (typeof SF.entries[k] !== 'string') delete SF.entries[k];
+        }
+        iStart.value = SF.startDate;
+        iEnd.value   = SF.endDate;
+        recalcDuration();
+        updateSummary();
+        persist();
+        generate(false);
+      } catch (err) {
+        alert('Could not read the file. Make sure it is a valid SuperFocus JSON export.');
+      }
+    };
+    reader.readAsText(file);
+    input.value = ''; // reset so same file can be re-imported
+  }
+
+  // ── Utilities ─────────────────────────────────────────────────
+  function wordCount(str) {
+    const t = str.trim();
+    return t ? t.split(/\s+/).length : 0;
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────
+  (function init() {
+    const raw = localStorage.getItem('superfocus');
+    if (raw) {
+      try {
+        const loaded = JSON.parse(raw);
+        if (loaded && loaded.startDate && loaded.endDate) {
+          SF = loaded;
+          if (typeof SF.entries !== 'object' || Array.isArray(SF.entries)) SF.entries = {};
+          iStart.value = SF.startDate;
+          iEnd.value   = SF.endDate;
+          recalcDuration();
+          updateSummary();
+          generate(false);
+          return;
+        }
+      } catch (_) {}
+    }
+    // Default start = today
+    iStart.value = todayStr();
+    updateSummary();
+  })();
+</script>
+
+</body>
+</html>
