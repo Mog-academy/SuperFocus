@@ -956,10 +956,9 @@
     localStorage.setItem('sf-notif-times', JSON.stringify(times));
     const btn = document.getElementById('notif-save-btn');
     const status = document.getElementById('notif-status');
-    const ep = localStorage.getItem('sf-push-endpoint');
-    if (ep) {
+    if (localStorage.getItem('sf-notifs') === '1') {
       try {
-        const res = await callEdge({ type: 'update-times', endpoint: ep, notify_times: times });
+        const res = await callEdge({ type: 'update-times', notify_times: times });
         const data = await res.json();
         if (status) status.textContent = data.ok ? '' : '⚠ DB update failed: ' + JSON.stringify(data);
       } catch(e) {
@@ -977,10 +976,9 @@
   }
 
   async function sendTestNotif() {
-    const ep = localStorage.getItem('sf-push-endpoint');
     const status = document.getElementById('notif-status');
     const btn = document.getElementById('notif-test-btn');
-    if (!ep) {
+    if (localStorage.getItem('sf-notifs') !== '1') {
       if (status) status.textContent = '⚠ Enable notifications first';
       return;
     }
@@ -992,7 +990,7 @@
     }
     if (btn) btn.textContent = '…';
     try {
-      const res = await callEdge({ type: 'test', endpoint: ep });
+      const res = await callEdge({ type: 'test' });
       const data = await res.json();
       if (status) status.textContent = data.ok ? '✓ Test sent! Check your notifications.' : '⚠ Failed: ' + JSON.stringify(data);
     } catch(e) {
@@ -1021,7 +1019,6 @@
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
-    localStorage.setItem('sf-push-endpoint', sub.endpoint);
     await callEdge({
       type: 'subscribe',
       subscription: sub.toJSON(),
@@ -1035,13 +1032,11 @@
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
-    localStorage.removeItem('sf-push-endpoint');
   }
 
   async function updatePushText() {
-    const ep = localStorage.getItem('sf-push-endpoint');
-    if (!ep) return;
-    callEdge({ type: 'update-text', endpoint: ep, user_text: todayFocusText() });
+    if (localStorage.getItem('sf-notifs') !== '1') return;
+    callEdge({ type: 'update-text', user_text: todayFocusText() });
   }
 
   function updateNotifBtn() {
