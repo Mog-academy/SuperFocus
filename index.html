@@ -724,7 +724,7 @@
         tile.classList.toggle('has-content', ta.value.length > 0);
         debouncePersist();
         // Re-schedule notifications when today's tile text changes
-        if (ds === today && localStorage.getItem('sf-notifs') === '1') scheduleNotifications();
+        if (ds === today && localStorage.getItem('sf-notifs') === '1') updatePushText();
       });
 
       if (animate) {
@@ -853,51 +853,60 @@
     return t ? t.split(/\s+/).length : 0;
   }
 
-  // ── Notifications ─────────────────────────────────────────────
+  // ── Notifications (Web Push via Supabase) ────────────────────
+  const VAPID_PUBLIC_KEY = 'BLcTI5eKr-8vMY61SSaZXUZe_jviYl3p25TAs08ZG9Z31TFJsoedoM4Pwr_Y7tE36WjlixLHRqa1sNMc1jdcrk8';
+  const SUPABASE_URL     = 'https://ccwydkzvjkbguzvajyyk.supabase.co';
+  const SUPABASE_ANON    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjd3lka3p2amtiZ3V6dmFqeXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNjMxMjgsImV4cCI6MjA4OTkzOTEyOH0.5rEvSs86oD55DTGQ6Gv9SMgIlQSYwE896rP5UPObcJw';
+  const EDGE_FN          = `${SUPABASE_URL}/functions/v1/push-notify`;
+
+  function urlBase64ToUint8Array(b64) {
+    const pad  = '='.repeat((4 - b64.length % 4) % 4);
+    const base = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from(atob(base), c => c.charCodeAt(0));
+  }
+
   function todayFocusText() {
     const t = (SF.entries[todayStr()] || '').trim();
     const line = t.split('\n').find(l => l.trim()) || '';
     return line.slice(0, 120);
   }
 
-  async function scheduleNotifications() {
-    if (Notification.permission !== 'granted') return;
-    if (!('serviceWorker' in navigator)) return;
+  async function callEdge(payload) {
+    return fetch(EDGE_FN, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  }
 
+  async function subscribePush() {
     const reg = await navigator.serviceWorker.ready;
-
-    // Clear any previously scheduled or active SF notifications
-    try {
-      const existing = await reg.getNotifications({ includeTriggered: true });
-      existing.forEach(n => n.close());
-    } catch(_) {}
-
-    if (!('TimestampTrigger' in window)) {
-      console.warn('SuperFocus: TimestampTrigger not supported in this browser.');
-      return;
-    }
-
-    const text = todayFocusText();
-    const body = text
-      ? `Today's focus on: ${text}`
-      : 'Time to update your SuperFocus for today!';
-
-    // TEST MODE: one notification 30 seconds from now
-    const testTs = Date.now() + 30000;
-    try {
-      await reg.showNotification('SuperFocus', {
-        body,
-        icon: '/SuperFocus/icons/icon-192.png',
-        badge: '/SuperFocus/icons/icon-192.png',
-        tag: 'sf-test',
-        renotify: true,
-        vibrate: [200, 100, 200],
-        showTrigger: new TimestampTrigger(testTs)
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
-      console.log('SuperFocus: notification scheduled for 30s from now');
-    } catch(err) {
-      console.error('SuperFocus: failed to schedule notification', err);
     }
+    localStorage.setItem('sf-push-endpoint', sub.endpoint);
+    await callEdge({ type: 'subscribe', subscription: sub.toJSON(), user_text: todayFocusText() });
+    return sub;
+  }
+
+  async function unsubscribePush() {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    localStorage.removeItem('sf-push-endpoint');
+  }
+
+  async function updatePushText() {
+    const ep = localStorage.getItem('sf-push-endpoint');
+    if (!ep) return;
+    callEdge({ type: 'update-text', endpoint: ep, user_text: todayFocusText() });
   }
 
   function updateNotifBtn() {
@@ -912,35 +921,28 @@
   }
 
   async function toggleNotifications() {
-    if (!('Notification' in window)) {
-      alert('Notifications are not supported in this browser.');
+    if (!('Notification' in window) || !('PushManager' in window)) {
+      alert('Push notifications are not supported. Make sure you are using the installed PWA in Chrome.');
       return;
     }
     const enabled = localStorage.getItem('sf-notifs') === '1';
     if (enabled) {
       localStorage.removeItem('sf-notifs');
-      // Cancel any pending scheduled notifications
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        try {
-          const existing = await reg.getNotifications({ includeTriggered: true });
-          existing.forEach(n => n.close());
-        } catch(_) {}
-      }
+      await unsubscribePush();
       updateNotifBtn();
       return;
     }
     const perm = await Notification.requestPermission();
-    if (perm === 'granted') {
+    if (perm !== 'granted') {
+      alert('Please allow notifications in your phone settings for this app.');
+      return;
+    }
+    try {
+      await subscribePush();
       localStorage.setItem('sf-notifs', '1');
-      if (!('TimestampTrigger' in window)) {
-        alert('Your browser does not support scheduled background notifications. Please update Chrome (Android) to the latest version.');
-        localStorage.removeItem('sf-notifs');
-      } else {
-        await scheduleNotifications();
-      }
-    } else {
-      alert('Please allow notifications in your browser/phone settings to enable reminders.');
+    } catch (err) {
+      alert('Could not enable push notifications: ' + err);
+      return;
     }
     updateNotifBtn();
   }
@@ -960,7 +962,7 @@
           updateSummary();
           generate(false);
           updateNotifBtn();
-          if (localStorage.getItem('sf-notifs') === '1') scheduleNotifications();
+          if (localStorage.getItem('sf-notifs') === '1') subscribePush();
           return;
         }
       } catch (_) {}

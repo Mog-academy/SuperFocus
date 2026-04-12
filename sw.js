@@ -1,4 +1,4 @@
-const CACHE = 'superfocus-v6';
+const CACHE = 'superfocus-v7';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
@@ -40,6 +40,22 @@ self.addEventListener('fetch', e => {
       caches.open(CACHE).then(c => c.put(e.request, clone));
       return res;
     }))
+  );
+});
+
+// ── Handle incoming Web Push from server ─────────────────────
+self.addEventListener('push', e => {
+  let data = { title: 'SuperFocus', body: 'Open SuperFocus — time to log today!' };
+  try { data = e.data.json(); } catch (_) {}
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body:     data.body,
+      icon:     BASE + '/icons/icon-192.png',
+      badge:    BASE + '/icons/icon-192.png',
+      vibrate:  [200, 100, 200],
+      tag:      'superfocus-daily',
+      renotify: true,
+    })
   );
 });
 
