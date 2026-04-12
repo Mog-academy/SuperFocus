@@ -9,8 +9,13 @@ create table if not exists push_subscriptions (
   endpoint     text        unique not null,
   subscription jsonb       not null,
   user_text    text        default '',
+  notify_hours integer[]   default '{6,12,18}',
   updated_at   timestamptz default now()
 );
+
+-- If the table already exists, add the column (safe to run twice):
+alter table push_subscriptions
+  add column if not exists notify_hours integer[] default '{6,12,18}';
 
 -- 2. RLS (service role bypasses this, anon cannot read subscriptions)
 alter table push_subscriptions enable row level security;
@@ -20,18 +25,19 @@ alter table push_subscriptions enable row level security;
 create extension if not exists pg_net   schema extensions;
 create extension if not exists pg_cron  schema cron;
 
--- 4. Scheduled jobs — cron runs in UTC
---    Asia/Dubai is UTC+4 (no DST), so:
---      6am   Dubai = 02:00 UTC
---      12pm  Dubai = 08:00 UTC
---      6pm   Dubai = 14:00 UTC
+-- 4. ONE hourly cron job — the edge function checks each subscription's
+--    notify_hours against the current Dubai hour (UTC+4) at runtime.
 --
---    REPLACE <YOUR_SERVICE_ROLE_KEY> with your actual key from
---    Supabase Dashboard > Project Settings > API > service_role key
+--    Remove old jobs first if you ran the previous version of this SQL:
+select cron.unschedule('superfocus-6am')  where exists (select 1 from cron.job where jobname = 'superfocus-6am');
+select cron.unschedule('superfocus-12pm') where exists (select 1 from cron.job where jobname = 'superfocus-12pm');
+select cron.unschedule('superfocus-6pm')  where exists (select 1 from cron.job where jobname = 'superfocus-6pm');
+select cron.unschedule('superfocus-hourly') where exists (select 1 from cron.job where jobname = 'superfocus-hourly');
 
+--    REPLACE <YOUR_SERVICE_ROLE_KEY> before running
 select cron.schedule(
-  'superfocus-6am',
-  '0 2 * * *',
+  'superfocus-hourly',
+  '0 * * * *',
   $$
   select extensions.http_post(
     url     := 'https://ccwydkzvjkbguzvajyyk.supabase.co/functions/v1/push-notify',
@@ -44,35 +50,5 @@ select cron.schedule(
   $$
 );
 
-select cron.schedule(
-  'superfocus-12pm',
-  '0 8 * * *',
-  $$
-  select extensions.http_post(
-    url     := 'https://ccwydkzvjkbguzvajyyk.supabase.co/functions/v1/push-notify',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer <YOUR_SERVICE_ROLE_KEY>'
-    ),
-    body    := '{"type":"send"}'::jsonb
-  );
-  $$
-);
-
-select cron.schedule(
-  'superfocus-6pm',
-  '0 14 * * *',
-  $$
-  select extensions.http_post(
-    url     := 'https://ccwydkzvjkbguzvajyyk.supabase.co/functions/v1/push-notify',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer <YOUR_SERVICE_ROLE_KEY>'
-    ),
-    body    := '{"type":"send"}'::jsonb
-  );
-  $$
-);
-
--- To verify cron jobs were created:
+-- To verify:
 -- select * from cron.job;

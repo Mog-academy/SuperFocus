@@ -253,6 +253,45 @@
     }
     .notif-on .notif-dot { display: block; }
 
+    /* ── Notif time settings bar ── */
+    #notif-settings {
+      max-width: 1400px;
+      margin: 0.6rem auto 0;
+      padding: 0 2rem;
+      display: none;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    #notif-settings.on { display: flex; }
+    .notif-times-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .notif-time-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-family: inherit;
+      font-weight: 600;
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      width: 7rem;
+    }
+    .notif-time-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .notif-time-input::-webkit-calendar-picker-indicator { filter: invert(0.3); }
+    #notif-save-btn { margin-left: 0.25rem; }
+
     /* ── Progress ── */
     #prog-bar {
       max-width: 1400px;
@@ -478,6 +517,9 @@
         justify-content: center;
       }
       #prog-bar { padding: 0 0.5rem; }
+      #notif-settings { padding: 0 0.5rem; gap: 0.4rem; }
+      .notif-time-input { width: auto; flex: 1; font-size: 0.78rem; }
+      #notif-save-btn { width: 100%; margin-left: 0; }
     }
   </style>
 </head>
@@ -544,6 +586,15 @@
       <span class="notif-dot"></span>
     </button>
   </div>
+</div>
+
+<!-- Notification time settings -->
+<div id="notif-settings">
+  <span class="notif-times-label">Reminder times</span>
+  <input type="time" class="notif-time-input" id="nt-1" value="06:00">
+  <input type="time" class="notif-time-input" id="nt-2" value="12:00">
+  <input type="time" class="notif-time-input" id="nt-3" value="18:00">
+  <button class="btn btn-secondary" id="notif-save-btn" onclick="saveNotifTimes()">Save times</button>
 </div>
 
 <!-- Progress bar -->
@@ -871,6 +922,47 @@
     return line.slice(0, 120);
   }
 
+  // ── Notif time helpers ────────────────────────────────────────
+  function getNotifHours() {
+    const saved = localStorage.getItem('sf-notif-hours');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (_) {}
+    }
+    return [6, 12, 18]; // defaults
+  }
+
+  function loadTimeInputs() {
+    const hours = getNotifHours();
+    ['nt-1','nt-2','nt-3'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (el) el.value = String(hours[i] ?? 6).padStart(2,'0') + ':00';
+    });
+  }
+
+  function readTimeInputs() {
+    return ['nt-1','nt-2','nt-3'].map(id => {
+      const el = document.getElementById(id);
+      if (!el) return 6;
+      return parseInt(el.value.split(':')[0], 10);
+    });
+  }
+
+  async function saveNotifTimes() {
+    const hours = readTimeInputs();
+    localStorage.setItem('sf-notif-hours', JSON.stringify(hours));
+    const ep = localStorage.getItem('sf-push-endpoint');
+    if (ep) {
+      await callEdge({ type: 'update-times', endpoint: ep, notify_hours: hours });
+    }
+    const btn = document.getElementById('notif-save-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Saved';
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+    }
+  }
+
   async function callEdge(payload) {
     return fetch(EDGE_FN, {
       method: 'POST',
@@ -892,7 +984,12 @@
       });
     }
     localStorage.setItem('sf-push-endpoint', sub.endpoint);
-    await callEdge({ type: 'subscribe', subscription: sub.toJSON(), user_text: todayFocusText() });
+    await callEdge({
+      type: 'subscribe',
+      subscription: sub.toJSON(),
+      user_text: todayFocusText(),
+      notify_hours: getNotifHours(),
+    });
     return sub;
   }
 
@@ -911,13 +1008,16 @@
 
   function updateNotifBtn() {
     const btn = document.getElementById('notif-btn');
-    if (!btn) return;
+    const bar = document.getElementById('notif-settings');
     const granted = Notification.permission === 'granted';
     const enabled = localStorage.getItem('sf-notifs') === '1';
-    btn.classList.toggle('notif-on', granted && enabled);
-    btn.title = (granted && enabled)
-      ? 'Reminders on: 6am, 12pm, 6pm — click to disable'
-      : 'Daily reminders at 6am, 12pm & 6pm';
+    if (btn) {
+      btn.classList.toggle('notif-on', granted && enabled);
+      btn.title = (granted && enabled)
+        ? 'Reminders on — click to disable'
+        : 'Daily reminders — click to enable';
+    }
+    if (bar) bar.classList.toggle('on', granted && enabled);
   }
 
   async function toggleNotifications() {
@@ -940,6 +1040,7 @@
     try {
       await subscribePush();
       localStorage.setItem('sf-notifs', '1');
+      loadTimeInputs();
     } catch (err) {
       alert('Could not enable push notifications: ' + err);
       return;
@@ -962,7 +1063,7 @@
           updateSummary();
           generate(false);
           updateNotifBtn();
-          if (localStorage.getItem('sf-notifs') === '1') subscribePush();
+          if (localStorage.getItem('sf-notifs') === '1') { subscribePush(); loadTimeInputs(); }
           return;
         }
       } catch (_) {}

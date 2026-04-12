@@ -26,6 +26,7 @@ Deno.serve(async (req: Request) => {
         endpoint: subscription.endpoint,
         subscription,
         user_text: user_text ?? "",
+        notify_hours: body.notify_hours ?? [6, 12, 18],
         updated_at: new Date().toISOString(),
       }, { "Prefer": "resolution=merge-duplicates" });
       return json({ ok: r.ok });
@@ -41,6 +42,16 @@ Deno.serve(async (req: Request) => {
       return json({ ok: r.ok });
     }
 
+    // ── Update notification times for a subscription ──────────────
+    if (type === "update-times") {
+      const r = await supabaseFetch(
+        "PATCH",
+        `/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
+        { notify_hours: body.notify_hours, updated_at: new Date().toISOString() }
+      );
+      return json({ ok: r.ok });
+    }
+
     // ── Send notifications to all subscribers (called by cron) ───
     if (type === "send") {
       // Only allow calls from cron (service role bearer token)
@@ -49,6 +60,9 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
       }
 
+      // Current hour in Dubai (UTC+4, no DST)
+      const dubaiHour = ((new Date().getUTCHours() + 4) % 24);
+
       const subsRes = await supabaseFetch("GET", "/rest/v1/push_subscriptions");
       const subs: any[] = await subsRes.json();
 
@@ -56,6 +70,10 @@ Deno.serve(async (req: Request) => {
       const toDelete: string[] = [];
 
       for (const row of subs) {
+        // Check if this subscriber wants a notification at the current Dubai hour
+        const wantedHours: number[] = Array.isArray(row.notify_hours) ? row.notify_hours : [6, 12, 18];
+        if (!wantedHours.includes(dubaiHour)) continue;
+
         const notifBody = row.user_text?.trim()
           ? `Today's focus on: ${row.user_text}`
           : "Open SuperFocus — time to log today!";
@@ -71,7 +89,6 @@ Deno.serve(async (req: Request) => {
           );
           sent++;
         } catch (err: any) {
-          // 410 Gone = subscription expired, clean it up
           if (err?.statusCode === 410 || err?.statusCode === 404) {
             toDelete.push(row.endpoint);
           }
@@ -85,7 +102,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      return json({ sent, deleted: toDelete.length });
+      return json({ sent, deleted: toDelete.length, dubaiHour });
     }
 
     return new Response(JSON.stringify({ error: "Unknown type" }), { status: 400, headers: cors });
