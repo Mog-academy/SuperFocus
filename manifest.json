@@ -3,6 +3,7 @@
   "short_name": "SuperFocus",
   "description": "One tile per day — stay on track",
   "start_url": "/SuperFocus/",
+  "scope": "/SuperFocus/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f0f0ee",

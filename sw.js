@@ -1,4 +1,4 @@
-const CACHE = 'superfocus-v1';
+const CACHE = 'superfocus-v3';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
@@ -23,14 +23,23 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Cache-first for same-origin requests
-  if (e.request.url.startsWith(self.location.origin)) {
+  if (!e.request.url.startsWith(self.location.origin)) return;
+
+  // For navigation requests always return index.html (handles /SuperFocus/ and any sub-path)
+  if (e.request.mode === 'navigate') {
     e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return res;
-      }))
+      caches.match(BASE + '/index.html')
+        .then(r => r || fetch(BASE + '/index.html'))
     );
+    return;
   }
+
+  // Cache-first for assets
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+      const clone = res.clone();
+      caches.open(CACHE).then(c => c.put(e.request, clone));
+      return res;
+    }))
+  );
 });
