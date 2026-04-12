@@ -752,7 +752,7 @@
     if (!total) return;
     const today = todayStr();
     let past = 0;
-    tiles.forEach(t => { if (t.dataset.date <= today) past++; });
+    tiles.forEach(t => { if (t.dataset.date < today) past++; });
     const pct = Math.round((past / total) * 100);
     document.getElementById('prog-fill').style.width = pct + '%';
     document.getElementById('prog-label').textContent =
