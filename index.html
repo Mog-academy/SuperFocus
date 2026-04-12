@@ -1021,10 +1021,6 @@
   }
 
   async function toggleNotifications() {
-    if (!('Notification' in window) || !('PushManager' in window)) {
-      alert('Push notifications are not supported. Make sure you are using the installed PWA in Chrome.');
-      return;
-    }
     const enabled = localStorage.getItem('sf-notifs') === '1';
     if (enabled) {
       localStorage.removeItem('sf-notifs');
