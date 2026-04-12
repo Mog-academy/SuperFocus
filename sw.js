@@ -1,4 +1,4 @@
-const CACHE = 'superfocus-v5';
+const CACHE = 'superfocus-v6';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
@@ -43,38 +43,7 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// ── Notification scheduling ───────────────────────────────────
-// TEST MODE: every 30 seconds
-let notifTimers = [];
-
-self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SCHEDULE_NOTIFS') {
-    scheduleNotifications(e.data.text);
-  }
-});
-
-function scheduleNotifications(focusText) {
-  notifTimers.forEach(id => clearInterval(id));
-  notifTimers = [];
-
-  const body = focusText
-    ? `Today's focus on: ${focusText}`
-    : 'Time to update your SuperFocus for today!';
-
-  const id = setInterval(() => {
-    self.registration.showNotification('SuperFocus', {
-      body,
-      icon: BASE + '/icons/icon-192.png',
-      badge: BASE + '/icons/icon-192.png',
-      tag: 'superfocus-test',
-      renotify: true,
-      vibrate: [200, 100, 200]
-    });
-  }, 30000);
-  notifTimers.push(id);
-}
-
-// Re-open the app when notification is tapped
+// ── Notification click: open the app ─────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(

@@ -724,7 +724,7 @@
         tile.classList.toggle('has-content', ta.value.length > 0);
         debouncePersist();
         // Re-schedule notifications when today's tile text changes
-        if (ds === today && localStorage.getItem('sf-notifs') === '1') sendTodayToSW();
+        if (ds === today && localStorage.getItem('sf-notifs') === '1') scheduleNotifications();
       });
 
       if (animate) {
@@ -856,16 +856,48 @@
   // ── Notifications ─────────────────────────────────────────────
   function todayFocusText() {
     const t = (SF.entries[todayStr()] || '').trim();
-    // Use first non-empty line, max 120 chars
     const line = t.split('\n').find(l => l.trim()) || '';
     return line.slice(0, 120);
   }
 
-  function sendTodayToSW() {
+  async function scheduleNotifications() {
+    if (Notification.permission !== 'granted') return;
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.ready.then(reg => {
-      if (reg.active) reg.active.postMessage({ type: 'SCHEDULE_NOTIFS', text: todayFocusText() });
-    });
+
+    const reg = await navigator.serviceWorker.ready;
+
+    // Clear any previously scheduled or active SF notifications
+    try {
+      const existing = await reg.getNotifications({ includeTriggered: true });
+      existing.forEach(n => n.close());
+    } catch(_) {}
+
+    if (!('TimestampTrigger' in window)) {
+      console.warn('SuperFocus: TimestampTrigger not supported in this browser.');
+      return;
+    }
+
+    const text = todayFocusText();
+    const body = text
+      ? `Today's focus on: ${text}`
+      : 'Time to update your SuperFocus for today!';
+
+    // TEST MODE: one notification 30 seconds from now
+    const testTs = Date.now() + 30000;
+    try {
+      await reg.showNotification('SuperFocus', {
+        body,
+        icon: '/SuperFocus/icons/icon-192.png',
+        badge: '/SuperFocus/icons/icon-192.png',
+        tag: 'sf-test',
+        renotify: true,
+        vibrate: [200, 100, 200],
+        showTrigger: new TimestampTrigger(testTs)
+      });
+      console.log('SuperFocus: notification scheduled for 30s from now');
+    } catch(err) {
+      console.error('SuperFocus: failed to schedule notification', err);
+    }
   }
 
   function updateNotifBtn() {
@@ -887,13 +919,26 @@
     const enabled = localStorage.getItem('sf-notifs') === '1';
     if (enabled) {
       localStorage.removeItem('sf-notifs');
+      // Cancel any pending scheduled notifications
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        try {
+          const existing = await reg.getNotifications({ includeTriggered: true });
+          existing.forEach(n => n.close());
+        } catch(_) {}
+      }
       updateNotifBtn();
       return;
     }
     const perm = await Notification.requestPermission();
     if (perm === 'granted') {
       localStorage.setItem('sf-notifs', '1');
-      sendTodayToSW();
+      if (!('TimestampTrigger' in window)) {
+        alert('Your browser does not support scheduled background notifications. Please update Chrome (Android) to the latest version.');
+        localStorage.removeItem('sf-notifs');
+      } else {
+        await scheduleNotifications();
+      }
     } else {
       alert('Please allow notifications in your browser/phone settings to enable reminders.');
     }
@@ -915,7 +960,7 @@
           updateSummary();
           generate(false);
           updateNotifBtn();
-          if (localStorage.getItem('sf-notifs') === '1') sendTodayToSW();
+          if (localStorage.getItem('sf-notifs') === '1') scheduleNotifications();
           return;
         }
       } catch (_) {}
