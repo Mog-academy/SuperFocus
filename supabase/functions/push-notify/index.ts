@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Save app data (date range + entries) ──────────────────────
     if (type === "save-data") {
-      const r = await supabaseFetch("PATCH", ROW, {
+      const r = await supabaseUpsert({
         start_date: body.start_date,
         end_date: body.end_date,
         entries: body.entries,
@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Save / refresh push subscription ─────────────────────────
     if (type === "subscribe") {
-      const r = await supabaseFetch("PATCH", ROW, {
+      const r = await supabaseUpsert({
         subscription: body.subscription,
         user_text: body.user_text ?? "",
         notify_times: body.notify_times ?? ["06:00", "12:00", "18:00"],
@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Update today's focus text ─────────────────────────────────
     if (type === "update-text") {
-      const r = await supabaseFetch("PATCH", ROW, {
+      const r = await supabaseUpsert({
         user_text: body.user_text,
         updated_at: new Date().toISOString(),
       });
@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Update notification times ─────────────────────────────────
     if (type === "update-times") {
-      const r = await supabaseFetch("PATCH", ROW, {
+      const r = await supabaseUpsert({
         notify_times: body.notify_times,
         updated_at: new Date().toISOString(),
       });
@@ -148,7 +148,7 @@ Deno.serve(async (req: Request) => {
       const res = await supabaseFetch("GET", ROW);
       const rows: any[] = await res.json();
       if (!rows.length || !rows[0].subscription) {
-        await supabaseFetch("PATCH", ROW, { last_send_log: `No subscription at ${dubaiHHMM}` });
+        await supabaseUpsert({ last_send_log: `No subscription at ${dubaiHHMM}` });
         return json({ sent: 0, reason: "No subscription", dubaiHHMM });
       }
 
@@ -159,7 +159,7 @@ Deno.serve(async (req: Request) => {
         return tm >= dubaiMinutes && tm < dubaiMinutes + 5;
       });
       if (!matches) {
-        await supabaseFetch("PATCH", ROW, { last_send_log: `Cron reached at ${dubaiHHMM}, no match (times: ${JSON.stringify(wantedTimes)})` });
+        await supabaseUpsert({ last_send_log: `Cron reached at ${dubaiHHMM}, no match (times: ${JSON.stringify(wantedTimes)})` });
         return json({ sent: 0, reason: "Not a notification time", dubaiHHMM });
       }
 
@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
         sendResult = `✗ webpush error at ${dubaiHHMM}: ${err?.message ?? err}`;
       }
 
-      await supabaseFetch("PATCH", ROW, { last_send_log: sendResult });
+      await supabaseUpsert({ last_send_log: sendResult });
       return json({ sent: 1, dubaiHHMM, sendResult });
     }
 
@@ -203,6 +203,13 @@ async function supabaseFetch(method: string, path: string, body?: any, extraHead
       ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+// ── Upsert row id=1 (creates if missing, merges if exists) ────
+async function supabaseUpsert(data: any) {
+  return supabaseFetch("POST", "/rest/v1/superfocus_config", { id: 1, ...data }, {
+    "Prefer": "resolution=merge-duplicates",
   });
 }
 
