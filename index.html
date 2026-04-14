@@ -508,7 +508,7 @@
       }
       .ctrl-actions {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 0.4rem;
       }
       .ctrl-actions #notif-times-btn { grid-column: 1 / -1; }
@@ -522,6 +522,108 @@
       .notif-time-input { width: auto; flex: 1; font-size: 0.78rem; }
       #notif-save-btn { width: 100%; margin-left: 0; }
     }
+
+    /* ── Category tile rows ── */
+    .cat-rows { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; overflow-y: auto; }
+    .cat-row { display: flex; flex-direction: column; gap: 0.1rem; }
+    .cat-label {
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      user-select: none;
+      padding: 0 0.1rem;
+    }
+    .cat-input {
+      background: transparent;
+      border: none;
+      resize: none;
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.5;
+      font-family: inherit;
+      padding: 0.05rem 0.1rem 0.2rem;
+      min-height: 1.4em;
+      overflow: hidden;
+    }
+    .cat-input:focus { outline: none; }
+
+    /* ── Categories modal ── */
+    #cat-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .cat-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+    }
+    .cat-modal-box {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .cat-modal-head { display: flex; align-items: center; justify-content: space-between; }
+    .cat-modal-title {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+    }
+    .cat-hint { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+    #cat-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .cat-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+    }
+    .cat-item-name { flex: 1; font-size: 0.88rem; color: var(--text); }
+    .cat-item-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+    .cat-item-btn:hover { background: var(--border); color: var(--text); }
+    .cat-item-btn:disabled { opacity: 0.3; cursor: default; }
+    .cat-add-row { display: flex; gap: 0.5rem; }
+    .cat-add-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 0.5rem 0.8rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    .cat-add-row input:focus { outline: none; border-color: var(--accent); }
+    .cat-modal-footer { display: flex; justify-content: flex-end; }
   </style>
 </head>
 <body>
@@ -583,6 +685,7 @@
     <button class="btn btn-secondary" onclick="exportFile()">↓ Export</button>
     <button class="btn btn-secondary" onclick="showSetup()">✎ Edit range</button>
     <button class="btn btn-secondary" id="refresh-btn" onclick="refreshFromDB()" title="Fetch latest data from server">↻ Refresh</button>
+    <button class="btn btn-secondary" onclick="openCatModal()">☰ Categories</button>
     <button class="btn btn-secondary btn-bell" id="notif-btn" onclick="toggleNotifications()" title="Daily reminders">
       🔔 Remind me
       <span class="notif-dot"></span>
@@ -602,6 +705,27 @@
   <button class="btn btn-secondary" onclick="debugNotifs()">🔍 Debug</button>
   <button class="btn btn-secondary" onclick="toggleTimePickers()">✕</button>
   <span id="notif-status" style="font-size:0.75rem;color:#666;width:100%;text-align:center;white-space:pre-wrap;"></span>
+</div>
+
+<!-- Categories modal -->
+<div id="cat-modal" style="display:none">
+  <div class="cat-modal-backdrop" onclick="closeCatModal()"></div>
+  <div class="cat-modal-box">
+    <div class="cat-modal-head">
+      <span class="cat-modal-title">Categories</span>
+      <button class="cat-item-btn" onclick="closeCatModal()" style="font-size:1rem;padding:0.2rem 0.5rem">✕</button>
+    </div>
+    <p class="cat-hint">Categories appear as labels in every tile. Add, remove, or reorder. Changes apply to all tiles.</p>
+    <div id="cat-list"></div>
+    <div class="cat-add-row">
+      <input type="text" id="cat-new-input" placeholder="New category…" maxlength="40"
+             onkeydown="if(event.key==='Enter')addCategory()">
+      <button class="btn btn-secondary" onclick="addCategory()">+ Add</button>
+    </div>
+    <div class="cat-modal-footer">
+      <button class="btn btn-primary" onclick="saveCategoriesDone()">Done</button>
+    </div>
+  </div>
 </div>
 
 <!-- Progress bar -->
@@ -626,7 +750,7 @@
   let _loaded = false; // true only after initial DB fetch completes
 
   // In-memory state
-  let SF = { startDate: null, endDate: null, entries: {} };
+  let SF = { startDate: null, endDate: null, entries: {}, categories: [] };
 
   // ── Date helpers ──────────────────────────────────────────────
   function toDate(str) {
@@ -756,37 +880,71 @@
       tile.className = 'tile' + (weekend ? ' weekend' : '') + (isToday ? ' today' : '');
       tile.dataset.date = ds;
 
-      tile.innerHTML = `
-        ${isToday ? '<span class="today-badge">Today</span>' : ''}
-        <div class="tile-head">
-          <div>
-            <div class="tile-dayname">${DAYS[dow]}</div>
-            <div class="tile-daynum">${d.getDate()}</div>
-            <div class="tile-month">${MONTHS_SHORT[mon]}</div>
+      const hasCats = SF.categories && SF.categories.length > 0;
+      if (hasCats) {
+        const entryObj = (typeof SF.entries[ds] === 'object' && SF.entries[ds] !== null && !Array.isArray(SF.entries[ds])) ? SF.entries[ds] : {};
+        tile.innerHTML = `
+          ${isToday ? '<span class="today-badge">Today</span>' : ''}
+          <div class="tile-head">
+            <div>
+              <div class="tile-dayname">${DAYS[dow]}</div>
+              <div class="tile-daynum">${d.getDate()}</div>
+              <div class="tile-month">${MONTHS_SHORT[mon]}</div>
+            </div>
+            <div class="tile-idx">#${i + 1}</div>
           </div>
-          <div class="tile-idx">#${i + 1}</div>
-        </div>
-        <textarea placeholder="Focus notes…"></textarea>
-        <div class="tile-foot"><span class="wc">0 words</span></div>
-      `;
-
-      const ta  = tile.querySelector('textarea');
-      const wcEl = tile.querySelector('.wc');
-      const saved = SF.entries[ds] || '';
-      ta.value = saved;
-      const wc = wordCount(saved);
-      wcEl.textContent = wc + ' word' + (wc !== 1 ? 's' : '');
-      if (saved) tile.classList.add('has-content');
-
-      ta.addEventListener('input', () => {
-        SF.entries[ds] = ta.value;
-        const n = wordCount(ta.value);
-        wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
-        tile.classList.toggle('has-content', ta.value.length > 0);
-        debouncePersist();
-        // Re-schedule notifications when today's tile text changes
-        if (ds === today && Notification.permission === 'granted') updatePushText();
-      });
+          <div class="cat-rows">${SF.categories.map(cat => `<div class="cat-row"><span class="cat-label">${escHtml(cat)}</span><textarea class="cat-input" data-cat="${escHtml(cat)}"></textarea></div>`).join('')}</div>
+          <div class="tile-foot"><span class="wc">0 words</span></div>
+        `;
+        const wcEl = tile.querySelector('.wc');
+        tile.querySelectorAll('.cat-input').forEach(catTa => {
+          catTa.value = entryObj[catTa.dataset.cat] || '';
+        });
+        const calcWc = () => { let n = 0; tile.querySelectorAll('.cat-input').forEach(t => n += wordCount(t.value)); return n; };
+        const wc0 = calcWc();
+        wcEl.textContent = wc0 + ' word' + (wc0 !== 1 ? 's' : '');
+        if (SF.categories.some(c => entryObj[c] && entryObj[c].trim())) tile.classList.add('has-content');
+        tile.querySelectorAll('.cat-input').forEach(catTa => {
+          catTa.addEventListener('input', () => {
+            if (typeof SF.entries[ds] !== 'object' || SF.entries[ds] === null || Array.isArray(SF.entries[ds])) SF.entries[ds] = {};
+            SF.entries[ds][catTa.dataset.cat] = catTa.value;
+            const n = calcWc();
+            wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
+            tile.classList.toggle('has-content', SF.categories.some(c => SF.entries[ds][c] && SF.entries[ds][c].trim()));
+            debouncePersist();
+            if (ds === today && Notification.permission === 'granted') updatePushText();
+          });
+        });
+      } else {
+        tile.innerHTML = `
+          ${isToday ? '<span class="today-badge">Today</span>' : ''}
+          <div class="tile-head">
+            <div>
+              <div class="tile-dayname">${DAYS[dow]}</div>
+              <div class="tile-daynum">${d.getDate()}</div>
+              <div class="tile-month">${MONTHS_SHORT[mon]}</div>
+            </div>
+            <div class="tile-idx">#${i + 1}</div>
+          </div>
+          <textarea placeholder="Focus notes…"></textarea>
+          <div class="tile-foot"><span class="wc">0 words</span></div>
+        `;
+        const ta  = tile.querySelector('textarea');
+        const wcEl = tile.querySelector('.wc');
+        const saved = typeof SF.entries[ds] === 'string' ? SF.entries[ds] : '';
+        ta.value = saved;
+        const wc = wordCount(saved);
+        wcEl.textContent = wc + ' word' + (wc !== 1 ? 's' : '');
+        if (saved) tile.classList.add('has-content');
+        ta.addEventListener('input', () => {
+          SF.entries[ds] = ta.value;
+          const n = wordCount(ta.value);
+          wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
+          tile.classList.toggle('has-content', ta.value.length > 0);
+          debouncePersist();
+          if (ds === today && Notification.permission === 'granted') updatePushText();
+        });
+      }
 
       if (animate) {
         const delay = Math.min(i * 10, 400); // cap delay at 400ms for long lists
@@ -820,8 +978,8 @@
     const tiles = document.querySelectorAll('.tile');
     let filled = 0, words = 0;
     tiles.forEach(t => {
-      const v = t.querySelector('textarea').value;
-      if (v.trim()) { filled++; words += wordCount(v); }
+      const text = Array.from(t.querySelectorAll('textarea')).map(el => el.value).join(' ');
+      if (text.trim()) { filled++; words += wordCount(text); }
     });
     document.getElementById('s-days').textContent   = tiles.length;
     document.getElementById('s-filled').textContent = filled;
@@ -843,7 +1001,7 @@
 
   // ── Persist ───────────────────────────────────────────────────
   function persist() {
-    callEdge({ type: 'save-data', start_date: SF.startDate, end_date: SF.endDate, entries: SF.entries });
+    callEdge({ type: 'save-data', start_date: SF.startDate, end_date: SF.endDate, entries: SF.entries, categories: SF.categories });
   }
 
   function debouncePersist() {
@@ -911,6 +1069,10 @@
   function wordCount(str) {
     const t = str.trim();
     return t ? t.split(/\s+/).length : 0;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   // ── Notifications (Web Push via Supabase) ────────────────────
@@ -1113,9 +1275,10 @@
         _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
         loadTimeInputs();
         if (data.start_date && data.end_date) {
-          SF.startDate = data.start_date;
-          SF.endDate   = data.end_date;
-          SF.entries   = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
+          SF.startDate  = data.start_date;
+          SF.endDate    = data.end_date;
+          SF.entries    = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
+          SF.categories = Array.isArray(data.categories) ? data.categories : [];
           iStart.value = SF.startDate;
           iEnd.value   = SF.endDate;
           recalcDuration();
@@ -1134,9 +1297,10 @@
         _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
         loadTimeInputs();
         if (data.start_date && data.end_date) {
-          SF.startDate = data.start_date;
-          SF.endDate   = data.end_date;
-          SF.entries   = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
+          SF.startDate  = data.start_date;
+          SF.endDate    = data.end_date;
+          SF.entries    = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
+          SF.categories = Array.isArray(data.categories) ? data.categories : [];
           iStart.value = SF.startDate;
           iEnd.value   = SF.endDate;
           recalcDuration();
@@ -1155,6 +1319,74 @@
     updateNotifBtn();
     _loaded = true;
   })();
+
+  // ── Categories ────────────────────────────────────────────────
+  let _editCats = [];
+
+  function openCatModal() {
+    _editCats = [...(SF.categories || [])];
+    renderCatList();
+    document.getElementById('cat-new-input').value = '';
+    document.getElementById('cat-modal').style.display = 'flex';
+  }
+
+  function closeCatModal() {
+    document.getElementById('cat-modal').style.display = 'none';
+  }
+
+  function renderCatList() {
+    const list = document.getElementById('cat-list');
+    if (!list) return;
+    if (_editCats.length === 0) {
+      list.innerHTML = '<p style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:0.5rem 0">No categories yet</p>';
+      return;
+    }
+    list.innerHTML = _editCats.map((cat, i) => `
+      <div class="cat-item">
+        <span class="cat-item-name">${escHtml(cat)}</span>
+        <button class="cat-item-btn" onclick="moveCatUp(${i})" title="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button class="cat-item-btn" onclick="moveCatDown(${i})" title="Move down" ${i === _editCats.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="cat-item-btn" onclick="removeCat(${i})" title="Remove">✕</button>
+      </div>`).join('');
+  }
+
+  function addCategory() {
+    const input = document.getElementById('cat-new-input');
+    const name = input.value.trim();
+    if (!name) return;
+    if (_editCats.some(c => c.toLowerCase() === name.toLowerCase())) {
+      input.style.borderColor = 'orange';
+      setTimeout(() => input.style.borderColor = '', 1500);
+      return;
+    }
+    _editCats.push(name);
+    input.value = '';
+    renderCatList();
+  }
+
+  function removeCat(i) {
+    _editCats.splice(i, 1);
+    renderCatList();
+  }
+
+  function moveCatUp(i) {
+    if (i === 0) return;
+    [_editCats[i - 1], _editCats[i]] = [_editCats[i], _editCats[i - 1]];
+    renderCatList();
+  }
+
+  function moveCatDown(i) {
+    if (i === _editCats.length - 1) return;
+    [_editCats[i + 1], _editCats[i]] = [_editCats[i], _editCats[i + 1]];
+    renderCatList();
+  }
+
+  function saveCategoriesDone() {
+    SF.categories = [..._editCats];
+    closeCatModal();
+    if (SF.startDate && SF.endDate) generate(false);
+    if (_loaded) persist();
+  }
 
   // ── Service Worker ────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
