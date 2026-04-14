@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Get all config ────────────────────────────────────────────
     if (type === "get-all") {
-      const res = await supabaseFetch("GET", ROW + "&select=notify_times,start_date,end_date,entries,categories");
+      const res = await supabaseFetch("GET", ROW + "&select=notify_times,start_date,end_date,entries,categories,cycles,active_cycle_id");
       const rows: any[] = await res.json();
       const row = rows[0] ?? {};
       return json({
@@ -34,16 +34,16 @@ Deno.serve(async (req: Request) => {
         end_date: row.end_date ?? "",
         entries: row.entries ?? {},
         categories: row.categories ?? [],
+        cycles: row.cycles ?? [],
+        active_cycle_id: row.active_cycle_id ?? "",
       });
     }
 
     // ── Save app data (date range + entries) ──────────────────────
     if (type === "save-data") {
       const r = await supabaseUpsert({
-        start_date: body.start_date,
-        end_date: body.end_date,
-        entries: body.entries,
-        categories: body.categories ?? [],
+        cycles: body.cycles ?? [],
+        active_cycle_id: body.active_cycle_id ?? "",
         updated_at: new Date().toISOString(),
       });
       return json({ ok: r.ok });

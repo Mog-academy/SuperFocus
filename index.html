@@ -488,7 +488,7 @@
       .tile-daynum { font-size: 1.1rem !important; }
       .tile-dayname, .tile-month, .tile-idx { font-size: 0.52rem !important; }
       .tile textarea:not(.cat-input) { font-size: 0.72rem; min-height: 55px; }
-      .cat-input { font-size: 0.72rem; min-height: 0; }
+      .cat-input { font-size: 0.72rem; min-height: 0; height: 1.152rem; /* 0.72rem * 1.6 */ }
       .wc { font-size: 0.5rem; }
       .stats { gap: 1rem; }
       .month-sep-name { font-size: 0.6rem; }
@@ -514,6 +514,67 @@
       #notif-settings { padding: 0 0.5rem; gap: 0.4rem; }
       .notif-time-input { width: auto; flex: 1; font-size: 0.78rem; }
       #notif-save-btn { width: 100%; margin-left: 0; }
+      #cycle-tabs { padding: 0 0.5rem; }
+    }
+
+    /* ── Cycle tabs ── */
+    #cycle-tabs {
+      max-width: 1400px;
+      margin: 0.75rem auto 0;
+      padding: 0 2rem;
+      display: none;
+      align-items: center;
+      gap: 0.4rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #cycle-tabs::-webkit-scrollbar { display: none; }
+    #cycle-tabs.on { display: flex; }
+    .cycle-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-sub);
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .cycle-tab:hover { background: var(--border); color: var(--text); }
+    .cycle-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .cycle-tab-del {
+      font-size: 0.65rem;
+      opacity: 0.55;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      font-family: inherit;
+    }
+    .cycle-tab-del:hover { opacity: 1; }
+    .cycle-tab-add {
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      border: 1px dashed var(--border-strong);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .cycle-tab-add:hover { border-color: var(--accent); color: var(--accent); }
     }
 
     /* ── Category tile rows ── */
@@ -539,10 +600,13 @@
       line-height: 1.6;
       font-family: inherit;
       padding: 0;
+      margin: 0;
       overflow: hidden;
       min-height: 0;
-      height: auto;
+      height: 1.312rem; /* 0.82rem * 1.6 — single line, no UA sizing */
       display: block;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .cat-input:focus { outline: none; }
 
@@ -632,7 +696,11 @@
 
 <!-- Setup panel -->
 <div id="setup-panel">
-  <h2>Set your focus period</h2>
+  <h2 id="setup-title">New cycle</h2>
+  <div class="field" style="margin-bottom:1rem">
+    <label>Cycle name</label>
+    <input type="text" id="i-cycle-name" placeholder="e.g. Q2 2026" maxlength="40">
+  </div>
   <div class="row3">
     <div class="field">
       <label>Start date</label>
@@ -654,7 +722,7 @@
   </div>
   <div class="setup-footer">
     <span id="summary-text">Enter a start date and duration or end date</span>
-    <button class="btn btn-primary" id="gen-btn" onclick="generate(); if(_loaded) persist()">Generate tiles →</button>
+    <button class="btn btn-primary" id="gen-btn" onclick="onGenerateClick()">Create cycle →</button>
   </div>
 </div>
 
@@ -737,6 +805,9 @@
   <div id="prog-label"></div>
 </div>
 
+<!-- Cycle tabs -->
+<div id="cycle-tabs"></div>
+
 <!-- Tiles -->
 <div id="tiles-grid"></div>
 
@@ -748,10 +819,24 @@
   let saveTimer = null;
   let hideTimer = null;
   let _notifTimes = ['06:00', '12:00', '18:00'];
-  let _loaded = false; // true only after initial DB fetch completes
+  let _loaded = false;
+  let _cycleMode = 'new'; // 'new' | 'edit'
 
-  // In-memory state
-  let SF = { startDate: null, endDate: null, entries: {}, categories: [] };
+  // Cycles state
+  let _cycles = [];
+  let _activeCycleId = null;
+
+  // Active cycle data (mirror of the active entry in _cycles)
+  let SF = { name: '', startDate: null, endDate: null, entries: {}, categories: [] };
+
+  function getActiveCycle() {
+    return _cycles.find(c => c.id === _activeCycleId) || null;
+  }
+
+  function syncSFToActive() {
+    const c = getActiveCycle();
+    if (c) { c.name = SF.name; c.startDate = SF.startDate; c.endDate = SF.endDate; c.entries = SF.entries; c.categories = SF.categories; }
+  }
 
   // ── Date helpers ──────────────────────────────────────────────
   function toDate(str) {
@@ -844,12 +929,10 @@
     const e = toDate(ev);
     if (e <= s) { updateSummary(); return; }
 
-    const autoGrow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+    const autoGrow = el => { el.style.height = '0'; el.style.height = el.scrollHeight + 'px'; };
 
     SF.startDate = sv;
     SF.endDate   = ev;
-    // persist() is NOT called here — generate() is used both on load (no save)
-    // and when the user clicks Generate (persist called by the button handler)
 
     const grid = document.getElementById('tiles-grid');
     grid.innerHTML = '';
@@ -897,7 +980,7 @@
             </div>
             <div class="tile-idx">#${i + 1}</div>
           </div>
-          <div class="cat-rows">${SF.categories.map(cat => `<div class="cat-row"><span class="cat-label">${escHtml(cat)}:</span><textarea class="cat-input" data-cat="${escHtml(cat)}" rows="1"></textarea></div>`).join('')}</div>
+          <div class="cat-rows">${SF.categories.map(cat => `<div class="cat-row"><span class="cat-label">${escHtml(cat)}:</span><textarea class="cat-input" data-cat="${escHtml(cat)}"></textarea></div>`).join('')}</div>
         `;
         tile.querySelectorAll('.cat-input').forEach(inp => {
           inp.value = catVals[inp.dataset.cat] || '';
@@ -952,18 +1035,23 @@
       }
 
       grid.appendChild(tile);
-      if (hasCats) tile.querySelectorAll('.cat-input').forEach(autoGrow);
+      if (hasCats) requestAnimationFrame(() => tile.querySelectorAll('.cat-input').forEach(autoGrow));
     }
 
-    // Hide setup, show controls + progress
+    // Show controls + progress + cycle tabs
     document.getElementById('setup-panel').style.display = 'none';
     document.getElementById('controls-bar').classList.add('on');
     document.getElementById('prog-bar').classList.add('on');
+    document.getElementById('cycle-tabs').classList.add('on');
     refreshStats();
     refreshProgress();
   }
 
   function showSetup() {
+    _cycleMode = 'edit';
+    document.getElementById('i-cycle-name').value = SF.name || '';
+    document.getElementById('setup-title').textContent = 'Edit cycle';
+    document.getElementById('gen-btn').textContent = 'Save changes →';
     document.getElementById('setup-panel').style.display = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -1007,7 +1095,8 @@
 
   // ── Persist ───────────────────────────────────────────────────
   function persist() {
-    callEdge({ type: 'save-data', start_date: SF.startDate, end_date: SF.endDate, entries: SF.entries, categories: SF.categories });
+    syncSFToActive();
+    callEdge({ type: 'save-data', cycles: _cycles, active_cycle_id: _activeCycleId });
   }
 
   function debouncePersist() {
@@ -1052,12 +1141,12 @@
           alert('This does not look like a valid SuperFocus file.');
           return;
         }
-        SF = { startDate: null, endDate: null, entries: {}, ...parsed };
-        // Sanitise: entries must be an object of string→string
+        SF = { startDate: null, endDate: null, entries: {}, categories: [], name: SF.name || 'Imported', ...parsed };
         if (typeof SF.entries !== 'object' || Array.isArray(SF.entries)) SF.entries = {};
         for (const k of Object.keys(SF.entries)) {
           if (typeof SF.entries[k] !== 'string') delete SF.entries[k];
         }
+        syncSFToActive();
         iStart.value = SF.startDate;
         iEnd.value   = SF.endDate;
         recalcDuration();
@@ -1079,10 +1168,16 @@
   function parseCatEntry(text, cats) {
     const result = {};
     const lines = (text || '').split('\n');
-    for (const cat of cats) {
-      const prefix = cat + ': ';
-      const found = lines.find(l => l.startsWith(prefix));
-      result[cat] = found ? found.slice(prefix.length) : '';
+    let currentCat = null;
+    const prefixes = cats.map(c => ({ cat: c, prefix: c + ': ' }));
+    for (const line of lines) {
+      const match = prefixes.find(({ prefix }) => line.startsWith(prefix));
+      if (match) {
+        currentCat = match.cat;
+        result[currentCat] = line.slice(match.prefix.length);
+      } else if (currentCat !== null) {
+        result[currentCat] += '\n' + line;
+      }
     }
     return result;
   }
@@ -1290,7 +1385,18 @@
       if (data.ok) {
         _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
         loadTimeInputs();
-        if (data.start_date && data.end_date) {
+        if (data.cycles && data.cycles.length > 0) {
+          _cycles = data.cycles;
+          if (!_cycles.find(c => c.id === _activeCycleId)) _activeCycleId = _cycles[0].id;
+          const c = getActiveCycle();
+          SF = { ...c };
+          iStart.value = SF.startDate || '';
+          iEnd.value   = SF.endDate || '';
+          recalcDuration();
+          updateSummary();
+          generate(false);
+          renderCycleTabs();
+        } else if (data.start_date && data.end_date) {
           SF.startDate  = data.start_date;
           SF.endDate    = data.end_date;
           SF.entries    = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
@@ -1312,16 +1418,28 @@
       if (data.ok) {
         _notifTimes = data.notify_times || ['06:00', '12:00', '18:00'];
         loadTimeInputs();
-        if (data.start_date && data.end_date) {
-          SF.startDate  = data.start_date;
-          SF.endDate    = data.end_date;
-          SF.entries    = (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {};
-          SF.categories = Array.isArray(data.categories) ? data.categories : [];
-          iStart.value = SF.startDate;
-          iEnd.value   = SF.endDate;
+        let hasTiles = false;
+        if (data.cycles && data.cycles.length > 0) {
+          _cycles = data.cycles;
+          _activeCycleId = data.active_cycle_id || _cycles[0].id;
+          if (!_cycles.find(c => c.id === _activeCycleId)) _activeCycleId = _cycles[0].id;
+          SF = { ...getActiveCycle() };
+          hasTiles = true;
+        } else if (data.start_date && data.end_date) {
+          // Migrate legacy data into first cycle
+          const id = 'c' + Date.now();
+          _cycles = [{ id, name: 'Cycle 1', startDate: data.start_date, endDate: data.end_date, entries: (typeof data.entries === 'object' && !Array.isArray(data.entries)) ? data.entries : {}, categories: Array.isArray(data.categories) ? data.categories : [] }];
+          _activeCycleId = id;
+          SF = { ..._cycles[0] };
+          hasTiles = true;
+        }
+        if (hasTiles) {
+          iStart.value = SF.startDate || '';
+          iEnd.value   = SF.endDate || '';
           recalcDuration();
           updateSummary();
           generate(false);
+          renderCycleTabs();
           updateNotifBtn();
           if (Notification.permission === 'granted') subscribePush();
           _loaded = true;
@@ -1329,12 +1447,88 @@
         }
       }
     } catch (_) {}
-    // Default start = today
     iStart.value = todayStr();
     updateSummary();
     updateNotifBtn();
     _loaded = true;
   })();
+
+  // ── Cycles ────────────────────────────────────────────────────
+  function renderCycleTabs() {
+    const container = document.getElementById('cycle-tabs');
+    if (!container) return;
+    const canDelete = _cycles.length > 1;
+    container.innerHTML = _cycles.map(c => `
+      <button class="cycle-tab${c.id === _activeCycleId ? ' active' : ''}" onclick="switchCycle('${c.id}')">
+        ${escHtml(c.name)}
+        ${canDelete ? `<span class="cycle-tab-del" onclick="event.stopPropagation();deleteCycle('${c.id}')" title="Delete cycle">&times;</span>` : ''}
+      </button>`).join('') + `<button class="cycle-tab-add" onclick="newCycleClick()">+</button>`;
+    container.classList.add('on');
+  }
+
+  function switchCycle(id) {
+    if (id === _activeCycleId) return;
+    syncSFToActive();
+    _activeCycleId = id;
+    SF = { ...getActiveCycle() };
+    iStart.value = SF.startDate || '';
+    iEnd.value   = SF.endDate || '';
+    recalcDuration();
+    generate(false);
+    renderCycleTabs();
+  }
+
+  function deleteCycle(id) {
+    if (_cycles.length <= 1) { alert('Cannot delete the last cycle.'); return; }
+    if (!confirm('Delete this cycle and all its data?')) return;
+    const idx = _cycles.findIndex(c => c.id === id);
+    _cycles.splice(idx, 1);
+    if (_activeCycleId === id) {
+      _activeCycleId = _cycles[Math.max(0, idx - 1)].id;
+      SF = { ...getActiveCycle() };
+      iStart.value = SF.startDate || '';
+      iEnd.value   = SF.endDate || '';
+      recalcDuration();
+      generate(false);
+    }
+    renderCycleTabs();
+    if (_loaded) persist();
+  }
+
+  function newCycleClick() {
+    _cycleMode = 'new';
+    document.getElementById('i-cycle-name').value = '';
+    document.getElementById('setup-title').textContent = 'New cycle';
+    document.getElementById('gen-btn').textContent = 'Create cycle →';
+    iStart.value = ''; iEnd.value = ''; iDur.value = '';
+    updateSummary();
+    document.getElementById('setup-panel').style.display = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function onGenerateClick() {
+    const sv = iStart.value, ev = iEnd.value;
+    if (!sv || !ev) return;
+    const s = toDate(sv), e = toDate(ev);
+    if (e <= s) { updateSummary(); return; }
+    const name = (document.getElementById('i-cycle-name').value.trim()) || ('Cycle ' + (_cycles.length + 1));
+    if (_cycleMode === 'edit') {
+      SF.name = name; SF.startDate = sv; SF.endDate = ev;
+      syncSFToActive();
+      document.getElementById('setup-panel').style.display = 'none';
+      generate(false); renderCycleTabs();
+      if (_loaded) persist();
+    } else {
+      const id = 'c' + Date.now();
+      const newCycle = { id, name, startDate: sv, endDate: ev, entries: {}, categories: [] };
+      _cycles.push(newCycle);
+      _activeCycleId = id;
+      SF = { ...newCycle };
+      document.getElementById('setup-panel').style.display = 'none';
+      generate(false); renderCycleTabs();
+      if (_loaded) persist();
+    }
+  }
 
   // ── Categories ────────────────────────────────────────────────
   let _editCats = [];
