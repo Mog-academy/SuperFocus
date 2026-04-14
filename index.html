@@ -422,7 +422,7 @@
       color: var(--text-muted);
       font-weight: 600;
     }
-    .tile textarea {
+    .tile textarea:not(.cat-input) {
       flex: 1;
       background: transparent;
       border: none;
@@ -433,16 +433,8 @@
       font-family: inherit;
       min-height: 90px;
     }
-    .tile textarea:focus { outline: none; }
-    .tile textarea::placeholder { color: var(--text-muted); font-style: italic; }
-    .tile-foot {
-      display: flex;
-      justify-content: flex-end;
-    }
-    .wc {
-      font-size: 0.58rem;
-      color: var(--text-muted);
-    }
+    .tile textarea:not(.cat-input):focus { outline: none; }
+    .tile textarea:not(.cat-input)::placeholder { color: var(--text-muted); font-style: italic; }
     .tile.has-content { border-color: #a8a7a3; }
     .tile.has-content .tile-daynum { color: var(--text); }
 
@@ -524,28 +516,32 @@
     }
 
     /* ── Category tile rows ── */
-    .cat-rows { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; overflow-y: auto; }
-    .cat-row { display: flex; flex-direction: column; gap: 0.1rem; }
+    .cat-rows { flex: 1; display: flex; flex-direction: column; gap: 0; }
+    .cat-row { display: flex; align-items: flex-start; gap: 0.25rem; }
     .cat-label {
-      font-size: 0.6rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
+      font-size: 0.82rem;
       color: var(--text-muted);
       user-select: none;
-      padding: 0 0.1rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.6;
+      padding-top: 0.05rem;
     }
     .cat-input {
+      flex: 1;
+      min-width: 0;
       background: transparent;
       border: none;
       resize: none;
       color: var(--text);
       font-size: 0.82rem;
-      line-height: 1.5;
+      line-height: 1.6;
       font-family: inherit;
-      padding: 0.05rem 0.1rem 0.2rem;
-      min-height: 1.4em;
+      padding: 0;
       overflow: hidden;
+      min-height: 0;
+      height: auto;
+      display: block;
     }
     .cat-input:focus { outline: none; }
 
@@ -669,12 +665,16 @@
       <div class="stat-lbl">Days</div>
     </div>
     <div>
-      <div class="stat-val" id="s-filled">—</div>
-      <div class="stat-lbl">Filled</div>
+      <div class="stat-val" id="s-elapsed">—</div>
+      <div class="stat-lbl">Elapsed</div>
     </div>
     <div>
-      <div class="stat-val" id="s-words">—</div>
-      <div class="stat-lbl">Words</div>
+      <div class="stat-val" id="s-left">—</div>
+      <div class="stat-lbl">Left</div>
+    </div>
+    <div>
+      <div class="stat-val" id="s-filled">—</div>
+      <div class="stat-lbl">Filled</div>
     </div>
   </div>
   <div class="ctrl-actions">
@@ -843,6 +843,8 @@
     const e = toDate(ev);
     if (e <= s) { updateSummary(); return; }
 
+    const autoGrow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+
     SF.startDate = sv;
     SF.endDate   = ev;
     // persist() is NOT called here — generate() is used both on load (no save)
@@ -882,7 +884,8 @@
 
       const hasCats = SF.categories && SF.categories.length > 0;
       if (hasCats) {
-        const entryObj = (typeof SF.entries[ds] === 'object' && SF.entries[ds] !== null && !Array.isArray(SF.entries[ds])) ? SF.entries[ds] : {};
+        const existingText = typeof SF.entries[ds] === 'string' ? SF.entries[ds] : '';
+        const catVals = parseCatEntry(existingText, SF.categories);
         tile.innerHTML = `
           ${isToday ? '<span class="today-badge">Today</span>' : ''}
           <div class="tile-head">
@@ -893,24 +896,20 @@
             </div>
             <div class="tile-idx">#${i + 1}</div>
           </div>
-          <div class="cat-rows">${SF.categories.map(cat => `<div class="cat-row"><span class="cat-label">${escHtml(cat)}</span><textarea class="cat-input" data-cat="${escHtml(cat)}"></textarea></div>`).join('')}</div>
-          <div class="tile-foot"><span class="wc">0 words</span></div>
+          <div class="cat-rows">${SF.categories.map(cat => `<div class="cat-row"><span class="cat-label">${escHtml(cat)}:</span><textarea class="cat-input" data-cat="${escHtml(cat)}" rows="1"></textarea></div>`).join('')}</div>
         `;
-        const wcEl = tile.querySelector('.wc');
-        tile.querySelectorAll('.cat-input').forEach(catTa => {
-          catTa.value = entryObj[catTa.dataset.cat] || '';
+        tile.querySelectorAll('.cat-input').forEach(inp => {
+          inp.value = catVals[inp.dataset.cat] || '';
+          autoGrow(inp);
         });
-        const calcWc = () => { let n = 0; tile.querySelectorAll('.cat-input').forEach(t => n += wordCount(t.value)); return n; };
-        const wc0 = calcWc();
-        wcEl.textContent = wc0 + ' word' + (wc0 !== 1 ? 's' : '');
-        if (SF.categories.some(c => entryObj[c] && entryObj[c].trim())) tile.classList.add('has-content');
-        tile.querySelectorAll('.cat-input').forEach(catTa => {
-          catTa.addEventListener('input', () => {
-            if (typeof SF.entries[ds] !== 'object' || SF.entries[ds] === null || Array.isArray(SF.entries[ds])) SF.entries[ds] = {};
-            SF.entries[ds][catTa.dataset.cat] = catTa.value;
-            const n = calcWc();
-            wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
-            tile.classList.toggle('has-content', SF.categories.some(c => SF.entries[ds][c] && SF.entries[ds][c].trim()));
+        if (SF.categories.some(c => catVals[c] && catVals[c].trim())) tile.classList.add('has-content');
+        tile.querySelectorAll('.cat-input').forEach(inp => {
+          inp.addEventListener('input', () => {
+            autoGrow(inp);
+            const vals = {};
+            tile.querySelectorAll('.cat-input').forEach(i => vals[i.dataset.cat] = i.value);
+            SF.entries[ds] = buildCatEntry(vals, SF.categories);
+            tile.classList.toggle('has-content', SF.categories.some(c => vals[c] && vals[c].trim()));
             debouncePersist();
             if (ds === today && Notification.permission === 'granted') updatePushText();
           });
@@ -927,19 +926,13 @@
             <div class="tile-idx">#${i + 1}</div>
           </div>
           <textarea placeholder="Focus notes…"></textarea>
-          <div class="tile-foot"><span class="wc">0 words</span></div>
         `;
         const ta  = tile.querySelector('textarea');
-        const wcEl = tile.querySelector('.wc');
         const saved = typeof SF.entries[ds] === 'string' ? SF.entries[ds] : '';
         ta.value = saved;
-        const wc = wordCount(saved);
-        wcEl.textContent = wc + ' word' + (wc !== 1 ? 's' : '');
         if (saved) tile.classList.add('has-content');
         ta.addEventListener('input', () => {
           SF.entries[ds] = ta.value;
-          const n = wordCount(ta.value);
-          wcEl.textContent = n + ' word' + (n !== 1 ? 's' : '');
           tile.classList.toggle('has-content', ta.value.length > 0);
           debouncePersist();
           if (ds === today && Notification.permission === 'granted') updatePushText();
@@ -958,6 +951,7 @@
       }
 
       grid.appendChild(tile);
+      if (hasCats) tile.querySelectorAll('.cat-input').forEach(autoGrow);
     }
 
     // Hide setup, show controls + progress
@@ -976,14 +970,25 @@
   // ── Stats & progress ──────────────────────────────────────────
   function refreshStats() {
     const tiles = document.querySelectorAll('.tile');
-    let filled = 0, words = 0;
+    let filled = 0;
     tiles.forEach(t => {
-      const text = Array.from(t.querySelectorAll('textarea')).map(el => el.value).join(' ');
-      if (text.trim()) { filled++; words += wordCount(text); }
+      const text = [
+        ...Array.from(t.querySelectorAll('textarea')).map(el => el.value),
+        ...Array.from(t.querySelectorAll('input.cat-input')).map(el => el.value),
+      ].join(' ');
+      if (text.trim()) filled++;
     });
-    document.getElementById('s-days').textContent   = tiles.length;
-    document.getElementById('s-filled').textContent = filled;
-    document.getElementById('s-words').textContent  = words;
+    const total = tiles.length;
+    const today = todayStr();
+    let elapsed = 0, left = 0;
+    tiles.forEach(t => {
+      if (t.dataset.date < today) elapsed++;
+      else if (t.dataset.date > today) left++;
+    });
+    document.getElementById('s-days').textContent    = total;
+    document.getElementById('s-elapsed').textContent = elapsed;
+    document.getElementById('s-left').textContent    = left;
+    document.getElementById('s-filled').textContent  = filled;
   }
 
   function refreshProgress() {
@@ -1066,13 +1071,23 @@
   }
 
   // ── Utilities ─────────────────────────────────────────────────
-  function wordCount(str) {
-    const t = str.trim();
-    return t ? t.split(/\s+/).length : 0;
-  }
-
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function parseCatEntry(text, cats) {
+    const result = {};
+    const lines = (text || '').split('\n');
+    for (const cat of cats) {
+      const prefix = cat + ': ';
+      const found = lines.find(l => l.startsWith(prefix));
+      result[cat] = found ? found.slice(prefix.length) : '';
+    }
+    return result;
+  }
+
+  function buildCatEntry(vals, cats) {
+    return cats.map(c => `${c}: ${vals[c] || ''}`).join('\n');
   }
 
   // ── Notifications (Web Push via Supabase) ────────────────────

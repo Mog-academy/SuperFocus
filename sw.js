@@ -1,4 +1,4 @@
-const CACHE = 'superfocus-v7';
+const CACHE = 'superfocus-v8';
 const BASE = '/SuperFocus';
 const ASSETS = [
   BASE + '/',
@@ -24,8 +24,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (!e.request.url.startsWith(self.location.origin)) return;
+  const url = e.request.url;
 
+  // Let API/push requests go straight to network — never cache them
+  if (!url.startsWith(self.location.origin)) return;
+
+  // For navigation, serve cached index.html (offline support)
   if (e.request.mode === 'navigate') {
     e.respondWith(
       caches.match(BASE + '/index.html')
@@ -33,6 +37,10 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
+
+  // Only cache known static assets; everything else hits the network
+  const isStaticAsset = ASSETS.some(a => url.endsWith(a));
+  if (!isStaticAsset) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
